@@ -290,22 +290,31 @@ function LandingScreen({ t }: { t: Translations }) {
         <FlaskConical className="w-10 h-10 text-white" />
       </div>
 
-      <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 dark:text-white mb-4">
+      <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 dark:text-white mb-3">
         Scia
         <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 bg-clip-text text-transparent">
           Source
         </span>
       </h1>
 
-      <p className="text-base text-neutral-500 dark:text-neutral-400 max-w-md leading-relaxed mb-10">
-        {t?.appDesc ?? "あなたの「なぜ？」に最適な科学的リサーチアプローチを即判定します。"}
+      {/* サブタイトル */}
+      <p className="text-base sm:text-lg font-semibold text-neutral-600 dark:text-neutral-300 mb-5">
+        学生が作った学生向けAI補助アプリ
+      </p>
+
+      {/* 概要テキスト */}
+      <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed mb-10">
+        科学的リサーチ・アプローチ判定ツール。あなたの問いや興味から、最適な研究手順や日常の具体案を、
+        <span className="text-violet-500 dark:text-violet-400 font-semibold">S〜Cのティア表</span>と
+        <span className="text-cyan-500 dark:text-cyan-400 font-semibold">インタラクティブな統計グラフ</span>で
+        視覚的にわかりやすく可視化します。
       </p>
 
       {/* フィーチャー説明カード */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full">
         {[
           { emoji: "🏆", title: "S〜Cティア表", desc: "実用案を格付け形式で直感的に提示" },
-          { emoji: "📊", title: "全6種グラフ", desc: "Excel級のインタラクティブな統計可視化" },
+          { emoji: "📊", title: "全6種の統計グラフ", desc: "棒・折れ線・エリア・円・レーダー・複合グラフに対応" },
           { emoji: "💬", title: "連続質問対応", desc: "スレッド形式で深掘り質問が可能" },
         ].map(({ emoji, title, desc }) => (
           <div
