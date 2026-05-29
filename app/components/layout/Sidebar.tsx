@@ -9,78 +9,47 @@ import {
 } from "lucide-react";
 import type { Lang, Translations } from "@/app/lib/i18n/translations";
 import { LANG_LABELS } from "@/app/lib/i18n/translations";
+import type { ChatThread } from "@/app/types/chat";
 
-// ── 型定義 ──────────────────────────────────────────
-type HistoryItem = { id: string; question: string };
-
+// ── Props ────────────────────────────────────────────────
 interface SidebarProps {
   isExpanded: boolean;
   onToggle: () => void;
   onNewChat: () => void;
+  // 実スレッドデータ（page.tsx から引き渡し）
+  threads: ChatThread[];
+  trashedThreads: ChatThread[];
+  activeThreadId: string | null;
+  onSelectThread: (id: string) => void;
+  onDeleteThread: (id: string) => void;
+  onRestoreThread: (id: string) => void;
+  onDeleteForever: (id: string) => void;
   lang: Lang;
   onLangChange: (l: Lang) => void;
   t: Translations;
   isDark: boolean;
 }
 
-// ── 初期モックデータ ──────────────────────────────────
-const INITIAL_HISTORY: HistoryItem[] = [
-  { id: "1", question: "睡眠と記憶力の関係" },
-  { id: "2", question: "SNSとメンタルヘルス" },
-  { id: "3", question: "プラシーボ効果のメカニズム" },
-  { id: "4", question: "運動と認知機能" },
-  { id: "5", question: "食事と気分の相関" },
-];
-
 const LANGS: Lang[] = ["ja", "en", "zh", "ko"];
-const SIDEBAR_EXPANDED = 260;
-const SIDEBAR_COLLAPSED = 68;
 
-export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t }: SidebarProps) {
-  const [history,   setHistory]   = useState<HistoryItem[]>(INITIAL_HISTORY);
-  const [trash,     setTrash]     = useState<HistoryItem[]>([]);
+export function Sidebar({
+  isExpanded, onToggle, onNewChat,
+  threads, trashedThreads, activeThreadId,
+  onSelectThread, onDeleteThread, onRestoreThread, onDeleteForever,
+  lang, onLangChange, t,
+}: SidebarProps) {
   const [trashOpen, setTrashOpen] = useState(false);
-  const [activeId,  setActiveId]  = useState<string | null>(null);
-
-  // ── アクション ────────────────────────────────────
-  const handleDelete = (item: HistoryItem) => {
-    setHistory((prev) => prev.filter((h) => h.id !== item.id));
-    setTrash((prev) => [item, ...prev]);
-    if (activeId === item.id) {
-      setActiveId(null);
-      onNewChat(); // アクティブ履歴を削除→メイン画面リセット
-    }
-  };
-
-  const handleRestore = (item: HistoryItem) => {
-    setTrash((prev) => prev.filter((t) => t.id !== item.id));
-    setHistory((prev) => [...prev, item]);
-  };
-
-  const handleDeleteForever = (item: HistoryItem) => {
-    setTrash((prev) => prev.filter((t) => t.id !== item.id));
-  };
-
-  const handleSelectHistory = (item: HistoryItem) => {
-    setActiveId(item.id);
-  };
-
-  const handleNewChat = () => {
-    setActiveId(null);
-    onNewChat();
-  };
-
-  const width = isExpanded ? SIDEBAR_EXPANDED : SIDEBAR_COLLAPSED;
 
   return (
     <motion.aside
-      animate={{ width }}
+      animate={{ width: isExpanded ? 260 : 68 }}
       transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
       className="flex-none h-screen sticky top-0 flex flex-col bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 overflow-hidden z-30"
     >
       {/* ── ヘッダー ── */}
       <div className="flex items-center gap-3 px-3 h-14 flex-none border-b border-neutral-100 dark:border-neutral-800">
-        <button onClick={onToggle}
+        <button
+          onClick={onToggle}
           className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 dark:text-neutral-400 transition-colors duration-150 flex-none"
           aria-label="サイドバーの開閉"
         >
@@ -88,7 +57,9 @@ export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t
         </button>
         <AnimatePresence initial={false}>
           {isExpanded && (
-            <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }} transition={{ duration: 0.18 }}
+            <motion.div
+              initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}
+              transition={{ duration: 0.18 }}
               className="flex items-center gap-2 overflow-hidden"
             >
               <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-500 flex items-center justify-center flex-none">
@@ -102,15 +73,18 @@ export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t
         </AnimatePresence>
       </div>
 
-      {/* ── 新しく判定するボタン ── */}
+      {/* ── 新規チャットボタン ── */}
       <div className="px-2 pt-3 pb-2 flex-none">
-        <button onClick={handleNewChat}
-          className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold text-sm transition-all duration-150 bg-gradient-to-r from-violet-500 to-cyan-500 text-white shadow-md shadow-violet-500/20 hover:opacity-90 active:scale-[0.98] ${!isExpanded ? "justify-center" : ""}`}
+        <button
+          onClick={onNewChat}
+          className={`w-full flex items-center gap-3 rounded-xl px-3 py-2.5 font-semibold text-sm bg-gradient-to-r from-violet-500 to-cyan-500 text-white shadow-md shadow-violet-500/20 hover:opacity-90 active:scale-[0.98] transition-all duration-150 ${!isExpanded ? "justify-center" : ""}`}
         >
           <Plus className="w-4 h-4 flex-none" />
           <AnimatePresence initial={false}>
             {isExpanded && (
-              <motion.span initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: "auto" }} exit={{ opacity: 0, width: 0 }} transition={{ duration: 0.15 }}
+              <motion.span
+                initial={{ opacity: 0, width: 0 }} animate={{ opacity: 1, width: "auto" }} exit={{ opacity: 0, width: 0 }}
+                transition={{ duration: 0.15 }}
                 className="overflow-hidden whitespace-nowrap"
               >
                 {t?.newChat ?? "新しく判定する"}
@@ -120,7 +94,7 @@ export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t
         </button>
       </div>
 
-      {/* ── 履歴リスト ── */}
+      {/* ── スレッド一覧 ── */}
       <div className="flex-1 overflow-y-auto px-2 py-1 min-h-0">
         {isExpanded && (
           <p className="text-[10px] font-semibold text-neutral-400 dark:text-neutral-500 uppercase tracking-wider px-2 mb-1.5">
@@ -128,7 +102,7 @@ export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t
           </p>
         )}
 
-        {history.length === 0 && isExpanded && (
+        {isExpanded && threads.length === 0 && (
           <p className="text-xs text-neutral-400 px-2 py-2 italic">
             {t?.noHistoryLabel ?? "履歴がありません"}
           </p>
@@ -136,14 +110,14 @@ export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t
 
         <div className="space-y-0.5">
           <AnimatePresence initial={false}>
-            {history.map((item) => (
-              <HistoryRow
-                key={item.id}
-                item={item}
-                isActive={activeId === item.id}
+            {threads.map((thread) => (
+              <ThreadRow
+                key={thread.id}
+                thread={thread}
+                isActive={activeThreadId === thread.id}
                 isExpanded={isExpanded}
-                onSelect={handleSelectHistory}
-                onDelete={handleDelete}
+                onSelect={() => onSelectThread(thread.id)}
+                onDelete={() => onDeleteThread(thread.id)}
                 deleteLabel={t?.deleteHistoryLabel ?? "削除"}
               />
             ))}
@@ -155,18 +129,17 @@ export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t
       <div className="flex-none px-2 pb-1">
         <TrashAccordion
           isExpanded={isExpanded}
-          trash={trash}
+          trash={trashedThreads}
           trashOpen={trashOpen}
           onToggleTrash={() => setTrashOpen((v) => !v)}
-          onRestore={handleRestore}
-          onDeleteForever={handleDeleteForever}
+          onRestore={onRestoreThread}
+          onDeleteForever={onDeleteForever}
           t={t}
         />
       </div>
 
-      {/* ── フッター（言語 / 設定 / ヘルプ） ── */}
+      {/* ── フッター ── */}
       <div className="flex-none px-2 pb-3 pt-1 border-t border-neutral-100 dark:border-neutral-800 space-y-0.5">
-        {/* 言語セレクター */}
         {isExpanded ? (
           <div className="px-2 py-1.5">
             <div className="flex items-center gap-2 mb-1.5">
@@ -177,7 +150,9 @@ export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t
             </div>
             <div className="grid grid-cols-2 gap-1">
               {LANGS.map((l) => (
-                <button key={l} onClick={() => onLangChange(l)}
+                <button
+                  key={l}
+                  onClick={() => onLangChange(l)}
                   className={`text-xs py-1 px-1.5 rounded-lg font-medium transition-all duration-150 ${
                     lang === l
                       ? "bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400"
@@ -202,16 +177,16 @@ export function Sidebar({ isExpanded, onToggle, onNewChat, lang, onLangChange, t
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  HistoryRow — ホバーで削除ボタン表示
+//  ThreadRow — 実スレッド行（ホバーで削除ボタン）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function HistoryRow({
-  item, isActive, isExpanded, onSelect, onDelete, deleteLabel,
+function ThreadRow({
+  thread, isActive, isExpanded, onSelect, onDelete, deleteLabel,
 }: {
-  item: HistoryItem;
+  thread: ChatThread;
   isActive: boolean;
   isExpanded: boolean;
-  onSelect: (item: HistoryItem) => void;
-  onDelete: (item: HistoryItem) => void;
+  onSelect: () => void;
+  onDelete: () => void;
   deleteLabel: string;
 }) {
   return (
@@ -219,32 +194,42 @@ function HistoryRow({
       layout
       initial={{ opacity: 0, height: 0 }}
       animate={{ opacity: 1, height: "auto" }}
-      exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+      exit={{ opacity: 0, height: 0 }}
       transition={{ duration: 0.2 }}
     >
-      <div className={`group flex items-center gap-2 px-2 py-2 rounded-lg transition-colors duration-100 cursor-pointer ${
-        isActive
-          ? "bg-violet-50 dark:bg-violet-900/20"
-          : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
-      } ${!isExpanded ? "justify-center" : ""}`}
+      <div
+        className={`group flex items-center gap-2 px-2 py-2 rounded-lg transition-colors duration-100 cursor-pointer ${
+          isActive
+            ? "bg-violet-50 dark:bg-violet-900/20"
+            : "hover:bg-neutral-100 dark:hover:bg-neutral-800"
+        } ${!isExpanded ? "justify-center" : ""}`}
       >
-        <button onClick={() => onSelect(item)} className="flex items-center gap-2 flex-1 min-w-0 text-left">
-          <History className={`w-3.5 h-3.5 flex-none transition-colors ${isActive ? "text-violet-500" : "text-neutral-400 group-hover:text-violet-500"}`} />
+        <button onClick={onSelect} className="flex items-center gap-2 flex-1 min-w-0 text-left">
+          <History
+            className={`w-3.5 h-3.5 flex-none transition-colors ${
+              isActive ? "text-violet-500" : "text-neutral-400 group-hover:text-violet-500"
+            }`}
+          />
           <AnimatePresence initial={false}>
             {isExpanded && (
-              <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
-                className={`text-xs truncate flex-1 ${isActive ? "text-violet-700 dark:text-violet-300 font-medium" : "text-neutral-600 dark:text-neutral-300"}`}
+              <motion.span
+                initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+                transition={{ duration: 0.15 }}
+                className={`text-xs truncate flex-1 ${
+                  isActive
+                    ? "text-violet-700 dark:text-violet-300 font-medium"
+                    : "text-neutral-600 dark:text-neutral-300"
+                }`}
               >
-                {item.question}
+                {thread.title}
               </motion.span>
             )}
           </AnimatePresence>
         </button>
 
-        {/* ホバー時にのみ表示される削除ボタン */}
         {isExpanded && (
           <button
-            onClick={(e) => { e.stopPropagation(); onDelete(item); }}
+            onClick={(e) => { e.stopPropagation(); onDelete(); }}
             title={deleteLabel}
             className="flex-none opacity-0 group-hover:opacity-100 w-6 h-6 flex items-center justify-center rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-neutral-400 hover:text-red-500 transition-all duration-150"
           >
@@ -257,17 +242,17 @@ function HistoryRow({
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  TrashAccordion — ゴミ箱アコーディオン
+//  TrashAccordion — ゴミ箱（ChatThread版）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function TrashAccordion({
   isExpanded, trash, trashOpen, onToggleTrash, onRestore, onDeleteForever, t,
 }: {
   isExpanded: boolean;
-  trash: HistoryItem[];
+  trash: ChatThread[];
   trashOpen: boolean;
   onToggleTrash: () => void;
-  onRestore: (item: HistoryItem) => void;
-  onDeleteForever: (item: HistoryItem) => void;
+  onRestore: (id: string) => void;
+  onDeleteForever: (id: string) => void;
   t: Translations;
 }) {
   const trashLabel       = t?.trashLabel        ?? "ゴミ箱";
@@ -276,7 +261,6 @@ function TrashAccordion({
   const foreverLabel     = t?.deleteForeverLabel ?? "完全に削除";
 
   if (!isExpanded) {
-    // 折りたたみ時: バッジ付きゴミ箱アイコンのみ
     return (
       <button
         onClick={onToggleTrash}
@@ -295,15 +279,12 @@ function TrashAccordion({
 
   return (
     <div className="rounded-xl overflow-hidden border border-neutral-200 dark:border-neutral-700/60">
-      {/* アコーディオンヘッダー */}
       <button
         onClick={onToggleTrash}
         className="w-full flex items-center gap-2 px-3 py-2 hover:bg-neutral-50 dark:hover:bg-neutral-800/60 transition-colors duration-150"
       >
-        <Trash2 className={`w-3.5 h-3.5 flex-none transition-colors ${trash.length > 0 ? "text-red-400" : "text-neutral-400"}`} />
-        <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 flex-1 text-left">
-          {trashLabel}
-        </span>
+        <Trash2 className={`w-3.5 h-3.5 flex-none ${trash.length > 0 ? "text-red-400" : "text-neutral-400"}`} />
+        <span className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 flex-1 text-left">{trashLabel}</span>
         {trash.length > 0 && (
           <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-red-100 dark:bg-red-900/30 text-red-600 dark:text-red-400 font-bold mr-1">
             {trash.length}
@@ -314,7 +295,6 @@ function TrashAccordion({
         </motion.span>
       </button>
 
-      {/* アコーディオンコンテンツ */}
       <AnimatePresence initial={false}>
         {trashOpen && (
           <motion.div
@@ -326,31 +306,28 @@ function TrashAccordion({
           >
             <div className="border-t border-neutral-200 dark:border-neutral-700/60 px-2 py-2 space-y-1 max-h-40 overflow-y-auto">
               {trash.length === 0 ? (
-                <p className="text-xs text-neutral-400 px-2 py-1.5 italic text-center">
-                  {trashEmptyLabel}
-                </p>
+                <p className="text-xs text-neutral-400 px-2 py-1.5 italic text-center">{trashEmptyLabel}</p>
               ) : (
                 <AnimatePresence initial={false}>
-                  {trash.map((item) => (
-                    <motion.div key={item.id}
+                  {trash.map((thread) => (
+                    <motion.div
+                      key={thread.id}
                       initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
                       transition={{ duration: 0.18 }}
                     >
-                      <div className="flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/60 group">
+                      <div className="flex items-center gap-1.5 px-1.5 py-1.5 rounded-lg hover:bg-neutral-50 dark:hover:bg-neutral-800/60">
                         <span className="text-xs text-neutral-500 dark:text-neutral-400 truncate flex-1 min-w-0">
-                          {item.question}
+                          {thread.title}
                         </span>
-                        {/* 復元ボタン */}
                         <button
-                          onClick={() => onRestore(item)}
+                          onClick={() => onRestore(thread.id)}
                           title={restoreLabel}
                           className="flex-none w-6 h-6 flex items-center justify-center rounded-md hover:bg-emerald-100 dark:hover:bg-emerald-900/30 text-neutral-400 hover:text-emerald-500 transition-all duration-150"
                         >
                           <Undo2 className="w-3.5 h-3.5" />
                         </button>
-                        {/* 完全削除ボタン */}
                         <button
-                          onClick={() => onDeleteForever(item)}
+                          onClick={() => onDeleteForever(thread.id)}
                           title={foreverLabel}
                           className="flex-none w-6 h-6 flex items-center justify-center rounded-md hover:bg-red-100 dark:hover:bg-red-900/30 text-neutral-400 hover:text-red-500 transition-all duration-150"
                         >
@@ -374,11 +351,15 @@ function TrashAccordion({
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function SidebarFooterItem({ icon, label, isExpanded }: { icon: React.ReactNode; label: string; isExpanded: boolean }) {
   return (
-    <button className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-100 ${!isExpanded ? "justify-center" : ""}`}>
+    <button
+      className={`w-full flex items-center gap-3 px-2 py-2 rounded-lg text-neutral-500 dark:text-neutral-400 hover:bg-neutral-100 dark:hover:bg-neutral-800 hover:text-neutral-700 dark:hover:text-neutral-200 transition-colors duration-100 ${!isExpanded ? "justify-center" : ""}`}
+    >
       <span className="flex-none">{icon}</span>
       <AnimatePresence initial={false}>
         {isExpanded && (
-          <motion.span initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.15 }}
+          <motion.span
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            transition={{ duration: 0.15 }}
             className="text-xs font-medium whitespace-nowrap overflow-hidden flex-1 text-left"
           >
             {label}
