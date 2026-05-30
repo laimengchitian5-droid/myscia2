@@ -16,6 +16,9 @@ interface SidebarProps {
   isExpanded: boolean;
   onToggle: () => void;
   onNewChat: () => void;
+  // モバイルドロワー制御
+  mobileOpen: boolean;
+  onMobileClose: () => void;
   // 実スレッドデータ（page.tsx から引き渡し）
   threads: ChatThread[];
   trashedThreads: ChatThread[];
@@ -34,18 +37,52 @@ const LANGS: Lang[] = ["ja", "en", "zh", "ko"];
 
 export function Sidebar({
   isExpanded, onToggle, onNewChat,
+  mobileOpen, onMobileClose,
   threads, trashedThreads, activeThreadId,
   onSelectThread, onDeleteThread, onRestoreThread, onDeleteForever,
   lang, onLangChange, t,
 }: SidebarProps) {
   const [trashOpen, setTrashOpen] = useState(false);
 
+  const handleSelect = (id: string) => {
+    onSelectThread(id);
+    onMobileClose(); // モバイルでは選択後にドロワーを閉じる
+  };
+
   return (
-    <motion.aside
-      animate={{ width: isExpanded ? 260 : 68 }}
-      transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
-      className="flex-none h-screen sticky top-0 flex flex-col bg-white dark:bg-neutral-900 border-r border-neutral-200 dark:border-neutral-800 overflow-hidden z-30"
-    >
+    <>
+      {/* ── モバイル時のバックドロップ ── */}
+      <AnimatePresence>
+        {mobileOpen && (
+          <motion.div
+            key="backdrop"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            onClick={onMobileClose}
+            className="fixed inset-0 bg-black/50 z-40 md:hidden"
+          />
+        )}
+      </AnimatePresence>
+
+      {/* ── サイドバー本体 ── */}
+      {/* モバイル: fixed overlay / デスクトップ: sticky inline */}
+      <motion.aside
+        animate={{ width: isExpanded ? 260 : 68 }}
+        transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
+        className={`
+          h-screen flex flex-col
+          bg-white dark:bg-neutral-900
+          border-r border-neutral-200 dark:border-neutral-800
+          overflow-hidden
+          md:sticky md:top-0 md:flex-none md:z-30
+          fixed inset-y-0 left-0 z-50 md:relative
+          transition-transform duration-300
+          ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
+        `}
+        style={{ width: isExpanded ? 260 : 68 }}
+      >
       {/* ── ヘッダー ── */}
       <div className="flex items-center gap-3 px-3 h-14 flex-none border-b border-neutral-100 dark:border-neutral-800">
         <button
@@ -116,7 +153,7 @@ export function Sidebar({
                 thread={thread}
                 isActive={activeThreadId === thread.id}
                 isExpanded={isExpanded}
-                onSelect={() => onSelectThread(thread.id)}
+                onSelect={() => handleSelect(thread.id)}
                 onDelete={() => onDeleteThread(thread.id)}
                 deleteLabel={t?.deleteHistoryLabel ?? "削除"}
               />
@@ -173,6 +210,7 @@ export function Sidebar({
         <SidebarFooterItem icon={<HelpCircle className="w-3.5 h-3.5" />} label={t?.helpLabel    ?? "ヘルプ"} isExpanded={isExpanded} />
       </div>
     </motion.aside>
+    </>
   );
 }
 

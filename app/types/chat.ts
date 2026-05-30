@@ -1,7 +1,7 @@
 // ============================================================
 //  SciaSource — チャットスレッド型定義
 // ============================================================
-import type { PredictResponse, AgeGroup } from "@/app/types";
+import type { PredictResponse, AgeGroup, ResearchDepth, Plan } from "@/app/types";
 
 export interface ChatMessage {
   id: string;
@@ -20,6 +20,8 @@ export interface ChatThread {
   ageGroup: AgeGroup;
   showSources: boolean;
   showChart: boolean;
+  researchDepth: ResearchDepth;
+  plan: Plan;
   createdAt: number;
 }
 
@@ -29,4 +31,6 @@ export interface ThreadSettings {
   ageGroup: AgeGroup;
   showSources: boolean;
   showChart: boolean;
+  researchDepth: ResearchDepth;
+  plan: Plan;
 }

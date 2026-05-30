@@ -27,6 +27,9 @@ export type AgeGroup =
 
 export type LLMProvider = "groq" | "openai" | "anthropic" | "gemini";
 
+export type ResearchDepth = "standard" | "deep";
+export type Plan = "personal" | "enterprise" | "researcher";
+
 export type Lang = "ja" | "en" | "zh" | "ko";
 
 // ---------- リクエスト ----------

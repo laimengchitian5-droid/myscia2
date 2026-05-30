@@ -268,7 +268,8 @@ function TierTable({ plans }: { plans: TierItem[] }) {
   return (
     <div className="space-y-2">
       {/* ヘッダー行 */}
-      <div className="flex items-center gap-2 mb-1 px-1">
+      {/* ─── ヘッダー行（デスクトップのみ） ─── */}
+      <div className="hidden md:flex items-center gap-2 mb-1 px-1">
         <span className="w-12 flex-none" />
         <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest" style={{ width: "38%" }}>
           アクション
@@ -309,17 +310,19 @@ function TierTable({ plans }: { plans: TierItem[] }) {
                   initial={{ opacity: 0 }}
                   animate={{ opacity: 1 }}
                   transition={{ delay: TIER_ORDER.indexOf(tier) * 0.06 + i * 0.04, duration: 0.18 }}
-                  className="flex min-h-[56px]"
+                  className="flex flex-col md:flex-row min-h-[56px]"
                 >
-                  {/* 左列: アクション（40%） */}
-                  <div className={`flex-none px-3 py-3 flex items-center ${cfg.rowBg}`} style={{ width: "40%" }}>
-                    <p className={`text-xs font-bold ${cfg.actionColor} leading-snug`}>
+                  {/* モバイル: 縦1カラム / デスクトップ: 横2カラム */}
+                  <div className={`w-full md:w-auto md:flex-none px-3 py-2.5 md:py-3 ${cfg.rowBg}`} style={{ width: undefined }}>
+                    <div className="md:hidden text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">アクション</div>
+                    <p className={`text-xs font-bold ${cfg.actionColor} leading-snug md:w-[220px] lg:w-auto`}>
                       {item.action}
                     </p>
                   </div>
 
-                  {/* 右列: インサイト（60%） */}
-                  <div className="flex-1 px-3 py-3 flex items-center bg-white/60 dark:bg-neutral-800/40">
+                  {/* 右列: インサイト */}
+                  <div className="flex-1 px-3 py-2.5 md:py-3 bg-white/60 dark:bg-neutral-800/40 border-t md:border-t-0 md:border-l border-neutral-200/50 dark:border-neutral-700/40">
+                    <div className="md:hidden text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">＋α 解説</div>
                     <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
                       {item.insight || <span className="italic text-neutral-400">—</span>}
                     </p>

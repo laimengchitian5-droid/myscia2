@@ -57,16 +57,36 @@ export class GroqProvider implements ILLMProvider {
   async complete(input: LLMCompletionInput): Promise<LLMCompletionOutput> {
     const startTime = Date.now();
 
-    const completion = await this.client.chat.completions.create({
+    // ── 429 レートリミット時に1回自動リトライ ──────────────
+    const callApi = () => this.client.chat.completions.create({
       model: this.config.model,
       messages: [
         { role: "system", content: input.systemPrompt },
-        { role: "user", content: input.userMessage },
+        { role: "user",   content: input.userMessage  },
       ],
-      max_tokens: this.config.maxTokens,
-      temperature: this.config.temperature,
-      response_format: { type: "json_object" }, // JSON Mode 強制
+      max_tokens:      this.config.maxTokens,
+      temperature:     this.config.temperature,
+      response_format: { type: "json_object" },
     });
+
+    let completion: Awaited<ReturnType<typeof callApi>>;
+    try {
+      completion = await callApi();
+    } catch (firstErr: unknown) {
+      const is429 =
+        firstErr instanceof Error &&
+        (firstErr.message.includes("429") ||
+          firstErr.message.toLowerCase().includes("rate_limit") ||
+          firstErr.message.toLowerCase().includes("rate limit"));
+
+      if (is429) {
+        // 3秒待ってから1回リトライ
+        await new Promise((r) => setTimeout(r, 3000));
+        completion = await callApi();
+      } else {
+        throw firstErr;
+      }
+    }
 
     const rawText = completion.choices[0]?.message?.content ?? "{}";
     const latencyMs = Date.now() - startTime;

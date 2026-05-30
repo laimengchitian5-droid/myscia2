@@ -25,6 +25,8 @@ export const PredictRequestSchema = z.object({
     .optional()
     .default("groq"),
   lang: z.enum(["ja", "en", "zh", "ko"]).optional().default("ja"),
+  researchDepth: z.enum(["standard", "deep"]).optional().default("standard"),
+  plan: z.enum(["personal", "enterprise", "researcher"]).optional().default("personal"),
 });
 
 export const SourceItemSchema = z.object({

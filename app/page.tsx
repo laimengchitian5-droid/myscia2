@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { Header }      from "@/app/components/layout/Header";
 import { Sidebar }     from "@/app/components/layout/Sidebar";
 import { MessageLog }  from "@/app/components/chat/MessageLog";
 import { ChatFooter }  from "@/app/components/chat/ChatFooter";
@@ -9,10 +8,10 @@ import type { PredictRequest, PredictResponse, UserType, Lang } from "@/app/type
 import type { ChatMessage, ChatThread, ThreadSettings } from "@/app/types/chat";
 import type { Translations } from "@/app/lib/i18n/translations";
 import { TRANSLATIONS } from "@/app/lib/i18n/translations";
-import { FlaskConical, Loader2 } from "lucide-react";
+import { FlaskConical } from "lucide-react";
 import { motion } from "framer-motion";
 
-// UserType の内部値テーブル（バックエンド用の日本語固定キー）
+// UserType の内部値テーブル
 const INTERNAL_USER_TYPES: UserType[] = [
   "中学生", "高校生", "大学生", "大学院生",
   "大卒社会人", "大学院卒社会人", "シニア社会人",
@@ -20,78 +19,70 @@ const INTERNAL_USER_TYPES: UserType[] = [
 
 const SUPPORTED_LANGS: Lang[] = ["ja", "en", "zh", "ko"];
 
-// ── デフォルト設定 ──────────────────────────
 const DEFAULT_SETTINGS: ThreadSettings = {
-  userTypeIdx: 2,       // 大学生
-  ageGroup:    "指定なし",
-  showSources: true,
-  showChart:   true,
+  userTypeIdx:   2,
+  ageGroup:      "指定なし",
+  showSources:   true,
+  showChart:     true,
+  researchDepth: "standard",
+  plan:          "personal",
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  メインページ
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function HomePage() {
-  // ── テーマ / 言語 ──
-  const [isDark, setIsDark] = useState(false);
-  const [lang,   setLang]   = useState<Lang>("ja");
-
-  // ── サイドバー ──
+  const [isDark,          setIsDark]          = useState(false);
+  const [lang,            setLang]            = useState<Lang>("ja");
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
+  const [mobileDrawer,    setMobileDrawer]    = useState(false);
 
-  // ── スレッド管理 ──
-  const [threads,       setThreads]       = useState<ChatThread[]>([]);
+  const [threads,        setThreads]        = useState<ChatThread[]>([]);
   const [trashedThreads, setTrashedThreads] = useState<ChatThread[]>([]);
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
   const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
 
-  // ── グローバル設定（新規スレッド用デフォルト） ──
   const [globalSettings, setGlobalSettings] = useState<ThreadSettings>(DEFAULT_SETTINGS);
 
-  // 翻訳（Fast Refresh 安全ガード）
   const t: Translations = TRANSLATIONS[lang] ?? TRANSLATIONS.ja;
 
-  // 現在アクティブなスレッド
-  const currentThread = threads.find((th) => th.id === activeThreadId) ?? null;
-  const isLoading     = loadingThreadId !== null;
+  const currentThread  = threads.find((th) => th.id === activeThreadId) ?? null;
+  const isLoading      = loadingThreadId !== null;
+  const hasResponse    = (currentThread?.messages ?? []).some((m) => m.role === "assistant");
 
-  // アクティブスレッドの設定（なければグローバル）
   const activeSettings: ThreadSettings = currentThread
     ? {
-        userTypeIdx: currentThread.userTypeIdx,
-        ageGroup:    currentThread.ageGroup,
-        showSources: currentThread.showSources,
-        showChart:   currentThread.showChart,
+        userTypeIdx:   currentThread.userTypeIdx,
+        ageGroup:      currentThread.ageGroup,
+        showSources:   currentThread.showSources,
+        showChart:     currentThread.showChart,
+        researchDepth: currentThread.researchDepth,
+        plan:          currentThread.plan,
       }
     : globalSettings;
 
   // ── useEffect ──────────────────────────────
-  // テーマ初期化
   useEffect(() => {
     const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
     setIsDark(prefersDark);
   }, []);
 
-  // テーマ適用
   useEffect(() => {
     document.documentElement.classList.toggle("dark", isDark);
   }, [isDark]);
 
-  // ブラウザ言語の自動検知
   useEffect(() => {
     const browserLangs = navigator.languages ?? [navigator.language];
     for (const bl of browserLangs) {
       const code = bl.slice(0, 2) as Lang;
-      if (SUPPORTED_LANGS.includes(code)) {
-        setLang(code);
-        break;
-      }
+      if (SUPPORTED_LANGS.includes(code)) { setLang(code); break; }
     }
   }, []);
 
   // ── スレッド操作 ──────────────────────────
   const handleNewChat = useCallback(() => {
     setActiveThreadId(null);
+    setMobileDrawer(false);
   }, []);
 
   const handleSelectThread = useCallback((id: string) => {
@@ -105,7 +96,6 @@ export default function HomePage() {
       setTrashedThreads((tr) => [target, ...tr]);
       return prev.filter((t) => t.id !== id);
     });
-    // アクティブスレッドを削除したらウェルカム画面へ
     setActiveThreadId((cur) => (cur === id ? null : cur));
   }, []);
 
@@ -122,7 +112,6 @@ export default function HomePage() {
     setTrashedThreads((prev) => prev.filter((t) => t.id !== id));
   }, []);
 
-  // ── 設定変更ハンドラ ──────────────────────
   const handleSettingsChange = useCallback((newSettings: ThreadSettings) => {
     setGlobalSettings(newSettings);
     if (activeThreadId) {
@@ -139,11 +128,9 @@ export default function HomePage() {
   ) => {
     if (!question.trim() || isLoading) return;
 
-    // スレッドIDを確定（新規 or 既存）
     let threadId = activeThreadId;
 
     if (!threadId) {
-      // 新規スレッド作成
       const newThread: ChatThread = {
         id:          crypto.randomUUID(),
         title:       question.length > 22 ? question.slice(0, 22) + "…" : question,
@@ -155,13 +142,11 @@ export default function HomePage() {
       setThreads((prev) => [newThread, ...prev]);
       setActiveThreadId(threadId);
     } else {
-      // 既存スレッドの設定を最新化
       setThreads((prev) =>
         prev.map((t) => t.id === threadId ? { ...t, ...settings } : t)
       );
     }
 
-    // ユーザーメッセージを追加
     const userMsg: ChatMessage = {
       id:        crypto.randomUUID(),
       role:      "user",
@@ -177,13 +162,15 @@ export default function HomePage() {
     setLoadingThreadId(threadId);
 
     try {
-      const reqBody: PredictRequest = {
-        question:    question.trim(),
-        userType:    INTERNAL_USER_TYPES[settings.userTypeIdx],
-        ageGroup:    settings.ageGroup,
-        showSources: settings.showSources,
-        showChart:   settings.showChart,
+      const reqBody: PredictRequest & { researchDepth: string; plan: string } = {
+        question:      question.trim(),
+        userType:      INTERNAL_USER_TYPES[settings.userTypeIdx],
+        ageGroup:      settings.ageGroup,
+        showSources:   settings.showSources,
+        showChart:     settings.showChart,
         lang,
+        researchDepth: settings.researchDepth,
+        plan:          settings.plan,
       };
 
       const res  = await fetch("/api/predict", {
@@ -203,9 +190,7 @@ export default function HomePage() {
 
       setThreads((prev) =>
         prev.map((t) =>
-          t.id === threadId
-            ? { ...t, messages: [...t.messages, assistantMsg] }
-            : t
+          t.id === threadId ? { ...t, messages: [...t.messages, assistantMsg] } : t
         )
       );
     } catch (err) {
@@ -219,11 +204,13 @@ export default function HomePage() {
   return (
     <div className="flex h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-950 transition-colors duration-300">
 
-      {/* ── サイドバー ── */}
+      {/* ── サイドバー（モバイル: ドロワー / デスクトップ: インライン） ── */}
       <Sidebar
         isExpanded={sidebarExpanded}
         onToggle={() => setSidebarExpanded((v) => !v)}
         onNewChat={handleNewChat}
+        mobileOpen={mobileDrawer}
+        onMobileClose={() => setMobileDrawer(false)}
         threads={threads}
         trashedThreads={trashedThreads}
         activeThreadId={activeThreadId}
@@ -239,19 +226,22 @@ export default function HomePage() {
 
       {/* ── メインエリア ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-        {/* ヘッダー */}
-        <Header isDark={isDark} onToggleTheme={() => setIsDark((d) => !d)} t={t} />
+
+        {/* ヘッダー（モバイルハンバーガー付き） */}
+        <MobileHeader
+          onHamburger={() => setMobileDrawer(true)}
+          isDark={isDark}
+          onToggleTheme={() => setIsDark((d) => !d)}
+        />
 
         {/* Gemini風グラデーション帯 */}
         <div className="h-px w-full flex-none bg-gradient-to-r from-violet-500 via-fuchsia-500 via-cyan-400 to-blue-500 animate-gradient" />
 
-        {/* ── スクロール可能なコンテンツエリア ── */}
+        {/* コンテンツエリア */}
         <main className="flex-1 overflow-y-auto">
           {!currentThread || currentThread.messages.length === 0 ? (
-            /* ウェルカム画面 */
             <LandingScreen t={t} />
           ) : (
-            /* チャットログ */
             <MessageLog
               thread={currentThread}
               isLoading={isLoading && loadingThreadId === activeThreadId}
@@ -260,11 +250,12 @@ export default function HomePage() {
           )}
         </main>
 
-        {/* ── チャット入力フッター（常時表示） ── */}
+        {/* チャット入力フッター */}
         <ChatFooter
           onSend={handleSendMessage}
           isLoading={isLoading}
           hasThread={!!currentThread}
+          hasResponse={hasResponse}
           settings={activeSettings}
           onSettingsChange={handleSettingsChange}
           t={t}
@@ -275,7 +266,52 @@ export default function HomePage() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  ウェルカム画面（スレッド未選択 or メッセージ 0件）
+//  モバイルヘッダー（ハンバーガー + テーマトグル）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function MobileHeader({
+  onHamburger, isDark, onToggleTheme,
+}: {
+  onHamburger: () => void;
+  isDark: boolean;
+  onToggleTheme: () => void;
+}) {
+  return (
+    <header className="sticky top-0 z-20 border-b border-neutral-200/70 dark:border-neutral-800/70 backdrop-blur-md bg-white/80 dark:bg-neutral-950/80 flex-none">
+      <div className="w-full px-4 sm:px-6 h-14 flex items-center justify-between">
+        {/* ハンバーガー（モバイルのみ表示） */}
+        <button
+          onClick={onHamburger}
+          className="md:hidden w-9 h-9 rounded-xl flex items-center justify-center text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
+          aria-label="メニューを開く"
+        >
+          <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+          </svg>
+        </button>
+
+        {/* ロゴ（モバイルのみ表示） */}
+        <span className="md:hidden text-sm font-bold text-neutral-900 dark:text-white">
+          Scia<span className="bg-gradient-to-r from-violet-500 to-cyan-500 bg-clip-text text-transparent">Source</span>
+        </span>
+
+        {/* テーマトグル（Header から button だけ抽出） */}
+        <button
+          onClick={onToggleTheme}
+          className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
+          aria-label="テーマ切り替え"
+        >
+          {isDark
+            ? <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path strokeLinecap="round" d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42" strokeWidth="2"/></svg>
+            : <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+          }
+        </button>
+      </div>
+    </header>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  ウェルカム画面
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function LandingScreen({ t }: { t: Translations }) {
   return (
@@ -283,14 +319,14 @@ function LandingScreen({ t }: { t: Translations }) {
       initial={{ opacity: 0, y: 16 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.3 }}
-      className="flex flex-col items-center justify-center h-full px-6 py-16 text-center"
+      className="flex flex-col items-center justify-center min-h-full px-6 py-12 text-center"
     >
       {/* ロゴ */}
-      <div className="w-20 h-20 rounded-3xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-500 flex items-center justify-center shadow-2xl shadow-violet-500/25 mb-6">
-        <FlaskConical className="w-10 h-10 text-white" />
+      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-500 flex items-center justify-center shadow-2xl shadow-violet-500/25 mb-5">
+        <FlaskConical className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
       </div>
 
-      <h1 className="text-4xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 dark:text-white mb-3">
+      <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 dark:text-white mb-3">
         Scia
         <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 bg-clip-text text-transparent">
           Source
@@ -298,7 +334,7 @@ function LandingScreen({ t }: { t: Translations }) {
       </h1>
 
       {/* サブタイトル */}
-      <p className="text-base sm:text-lg font-semibold text-neutral-600 dark:text-neutral-300 mb-5">
+      <p className="text-base sm:text-lg font-semibold text-neutral-600 dark:text-neutral-300 mb-4">
         学生が作った学生向けAI補助アプリ
       </p>
 
@@ -310,12 +346,12 @@ function LandingScreen({ t }: { t: Translations }) {
         視覚的にわかりやすく可視化します。
       </p>
 
-      {/* フィーチャー説明カード */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 max-w-2xl w-full">
+      {/* フィーチャーカード */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl w-full">
         {[
-          { emoji: "🏆", title: "S〜Cティア表", desc: "実用案を格付け形式で直感的に提示" },
-          { emoji: "📊", title: "全6種の統計グラフ", desc: "棒・折れ線・エリア・円・レーダー・複合グラフに対応" },
-          { emoji: "💬", title: "連続質問対応", desc: "スレッド形式で深掘り質問が可能" },
+          { emoji: "🏆", title: "S〜Cティア表",     desc: "実用案を格付け形式で直感的に提示" },
+          { emoji: "📊", title: "全6種の統計グラフ", desc: "棒・折れ線・エリア・円・レーダー・複合グラフ" },
+          { emoji: "💬", title: "連続質問対応",      desc: "スレッド形式で深掘り質問が可能" },
         ].map(({ emoji, title, desc }) => (
           <div
             key={title}

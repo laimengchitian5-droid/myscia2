@@ -13,7 +13,7 @@ import {
   PredictRequestSchema,
   LLMJsonResponseSchema,
 } from "@/app/lib/validation/schemas";
-import type { PredictResponse, LLMProvider, ChartDataPoint, SourceItem, TierItem } from "@/app/types";
+import type { PredictResponse, LLMProvider, ChartDataPoint, SourceItem, ResearchDepth, Plan } from "@/app/types";
 import { resolveGroqApiKey } from "@/app/lib/llm/GroqProvider";
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -118,7 +118,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PredictRespon
     );
   }
 
-  const { question, userType, ageGroup, showSources, showChart, provider, lang } = parsed.data;
+  const { question, userType, ageGroup, showSources, showChart, provider, lang, researchDepth, plan } = parsed.data;
 
   // ---------- 3. APIキー確認 ----------
   const apiKey = resolveGroqApiKey();
@@ -139,7 +139,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PredictRespon
   const manager = new LLMManager(provider as LLMProvider);
 
   // ---------- 5. システムプロンプト構築（動的・ユーザー属性対応） ----------
-  const systemPrompt = buildSystemPrompt(userType, showSources, showChart, lang, ageGroup);
+  const systemPrompt = buildSystemPrompt(userType, showSources, showChart, lang, ageGroup, researchDepth, plan);
 
   const userMessage =
     `以下の疑問・質問に対して、科学的リサーチアプローチの観点から最適な研究分野と研究手法を答えてください。\n\n` +
