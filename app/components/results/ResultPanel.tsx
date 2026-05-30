@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ExternalLink, AlertTriangle, Zap, Clock,
   Copy, Download, Check, Database,
+  Maximize2, Minimize2, X, FlaskConical,
 } from "lucide-react";
 import { StatChart } from "./StatChart";
 import type { PredictResponse, TierItem, Tier } from "@/app/types";
@@ -15,8 +16,9 @@ interface ResultPanelProps {
   t: Translations;
 }
 
-type OuterTab = "overview" | "detailed" | "actions";
-type InnerTab = "practical" | "academic";
+type OuterTab    = "overview" | "detailed" | "actions";
+type InnerTab    = "practical" | "academic";
+type FullscreenTarget = "tier" | "chart" | null;
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  ティア設定
@@ -31,125 +33,191 @@ const TIER_CONFIG: Record<Tier, {
   glowColor: string;
   label: string;
 }> = {
-  S: {
-    badgeGradient: "from-red-500 via-orange-500 to-yellow-400",
-    rowBg: "bg-red-500/8 dark:bg-red-500/10",
-    actionColor: "text-orange-600 dark:text-orange-300",
-    borderColor: "border-orange-300/60 dark:border-orange-700/50",
-    glowColor: "shadow-orange-500/20",
-    label: "最優先",
-  },
-  A: {
-    badgeGradient: "from-violet-600 via-purple-500 to-fuchsia-500",
-    rowBg: "bg-violet-500/8 dark:bg-violet-500/10",
-    actionColor: "text-violet-700 dark:text-violet-300",
-    borderColor: "border-violet-300/60 dark:border-violet-700/50",
-    glowColor: "shadow-violet-500/20",
-    label: "重要",
-  },
-  B: {
-    badgeGradient: "from-blue-600 via-cyan-500 to-sky-400",
-    rowBg: "bg-cyan-500/8 dark:bg-cyan-500/10",
-    actionColor: "text-cyan-700 dark:text-cyan-300",
-    borderColor: "border-cyan-300/60 dark:border-cyan-700/50",
-    glowColor: "shadow-cyan-500/20",
-    label: "推奨",
-  },
-  C: {
-    badgeGradient: "from-emerald-600 via-teal-500 to-green-400",
-    rowBg: "bg-emerald-500/8 dark:bg-emerald-500/10",
-    actionColor: "text-emerald-700 dark:text-emerald-300",
-    borderColor: "border-emerald-300/60 dark:border-emerald-700/50",
-    glowColor: "shadow-emerald-500/20",
-    label: "補足",
-  },
+  S: { badgeGradient: "from-red-500 via-orange-500 to-yellow-400", rowBg: "bg-red-500/8 dark:bg-red-500/10",
+       actionColor: "text-orange-600 dark:text-orange-300", borderColor: "border-orange-300/60 dark:border-orange-700/50",
+       glowColor: "shadow-orange-500/20", label: "最優先" },
+  A: { badgeGradient: "from-violet-600 via-purple-500 to-fuchsia-500", rowBg: "bg-violet-500/8 dark:bg-violet-500/10",
+       actionColor: "text-violet-700 dark:text-violet-300", borderColor: "border-violet-300/60 dark:border-violet-700/50",
+       glowColor: "shadow-violet-500/20", label: "重要" },
+  B: { badgeGradient: "from-blue-600 via-cyan-500 to-sky-400", rowBg: "bg-cyan-500/8 dark:bg-cyan-500/10",
+       actionColor: "text-cyan-700 dark:text-cyan-300", borderColor: "border-cyan-300/60 dark:border-cyan-700/50",
+       glowColor: "shadow-cyan-500/20", label: "推奨" },
+  C: { badgeGradient: "from-emerald-600 via-teal-500 to-green-400", rowBg: "bg-emerald-500/8 dark:bg-emerald-500/10",
+       actionColor: "text-emerald-700 dark:text-emerald-300", borderColor: "border-emerald-300/60 dark:border-emerald-700/50",
+       glowColor: "shadow-emerald-500/20", label: "補足" },
 };
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  Markdown エクスポートフォーマッタ
+//  Markdown レポートフォーマッタ
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function buildMarkdown(data: PredictResponse): string {
-  const planMd = (plans: TierItem[], label: string) => {
+  const tierMd = (plans: TierItem[], label: string) => {
     if (!plans?.length) return "";
-    const header = `### ${label}\n\n| Rank | Action | Insight |\n|------|--------|---------|`;
     const rows = plans.map(({ tier, action, insight }) =>
       `| **${tier}** | ${action} | ${insight || "—"} |`
-    );
-    return [header, ...rows].join("\n");
+    ).join("\n");
+    return `### ${label}\n\n| ランク | アクション | ＋α 解説 |\n|--------|-----------|----------|\n${rows}\n`;
   };
-
   const sourcesMd = data.sources?.length
-    ? `### 参考文献\n\n${data.sources.map((s, i) =>
-        `${i + 1}. [${s.title}](${s.url || "#"})`
-      ).join("\n")}`
+    ? `### 参考文献\n\n${data.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url || "#"})`).join("\n")}\n`
     : "";
-
   return [
-    `# SciaSource 判定結果\n`,
+    `# scia-nexus® 判定レポート\n`,
     `**研究分野**: ${data.field.replace(/^[🎯]\s*/, "")}`,
     `**研究手法**: ${data.method.replace(/^[🔬]\s*/, "")}`,
     `**統計指標**: ${data.metrics.replace(/^[📊]\s*/, "")}\n`,
     `## 概要\n\n${data.explanation}\n`,
     data.detailedExplanation ? `## 詳細分析\n\n${data.detailedExplanation}\n` : "",
-    planMd(data.practicalPlans ?? [], "💡 日常の具体案（実用プラン）"),
-    planMd(data.academicPlans  ?? [], "🔬 研究・調査の手順（学術プラン）"),
+    tierMd(data.practicalPlans ?? [], "💡 日常の具体案（実用プラン）"),
+    tierMd(data.academicPlans  ?? [], "🔬 研究・調査の手順（学術プラン）"),
     sourcesMd,
-    `\n---\n*Generated by SciaSource AI (${data.provider} / ${data.model})*`,
+    `---\n*Generated by scia-nexus® (${data.provider} / ${data.model}) · © 2026 scia-nexus® Developer Team*`,
   ].filter(Boolean).join("\n");
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  PNG エクスポートフック
+//  エクスポートフック
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function useExport(panelRef: React.RefObject<HTMLDivElement | null>) {
   const [copyDone,     setCopyDone]     = useState(false);
   const [downloadDone, setDownloadDone] = useState(false);
   const [exporting,    setExporting]    = useState(false);
 
-  const copyMarkdown = useCallback(async (data: PredictResponse) => {
+  const copyReport = useCallback(async (data: PredictResponse) => {
     try {
       await navigator.clipboard.writeText(buildMarkdown(data));
       setCopyDone(true);
-      setTimeout(() => setCopyDone(false), 2200);
-    } catch { /* サイレント失敗 */ }
+      setTimeout(() => setCopyDone(false), 2400);
+    } catch { /* サイレント */ }
   }, []);
 
   const downloadPng = useCallback(async () => {
     if (!panelRef.current || exporting) return;
     setExporting(true);
     try {
-      // Dynamic import でバンドルサイズに影響しない
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(panelRef.current, {
         backgroundColor: "#ffffff",
-        scale: 2, // Retina 対応
+        scale: 2,
         useCORS: true,
         logging: false,
       });
       const link = document.createElement("a");
-      link.download = `sciasource_${Date.now()}.png`;
+      link.download = `scia-nexus_${Date.now()}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
       setDownloadDone(true);
-      setTimeout(() => setDownloadDone(false), 2200);
+      setTimeout(() => setDownloadDone(false), 2400);
     } catch (e) {
-      console.error("[SciaSource] PNG export failed:", e);
+      console.error("[scia-nexus] PNG export failed:", e);
     } finally {
       setExporting(false);
     }
   }, [panelRef, exporting]);
 
-  return { copyMarkdown, downloadPng, copyDone, downloadDone, exporting };
+  return { copyReport, downloadPng, copyDone, downloadDone, exporting };
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  フルスクリーンオーバーレイ
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function FullscreenOverlay({
+  target, innerTab, data, t, onClose,
+}: {
+  target: NonNullable<FullscreenTarget>;
+  innerTab: InnerTab;
+  data: PredictResponse;
+  t: Translations;
+  onClose: () => void;
+}) {
+  // Escape キーで閉じる
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [onClose]);
+
+  const plans = target === "tier"
+    ? (innerTab === "practical" ? data.practicalPlans : data.academicPlans) ?? []
+    : [];
+
+  const titleMap: Record<NonNullable<FullscreenTarget>, string> = {
+    tier:  innerTab === "practical" ? "💡 日常の具体案（実用プラン）" : "🔬 研究・調査の手順（学術プラン）",
+    chart: "📊 統計グラフ",
+  };
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      transition={{ duration: 0.18 }}
+      className="fixed inset-0 z-[200] bg-neutral-950 flex flex-col"
+    >
+      {/* ヘッダー */}
+      <div className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-neutral-800 flex-none">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+            <FlaskConical className="w-4 h-4 text-white" />
+          </div>
+          <div>
+            <p className="text-white font-black text-sm tracking-tight">
+              scia-nexus<sup className="text-[8px] text-violet-400 ml-px">®</sup>
+            </p>
+            <p className="text-neutral-400 text-xs">{titleMap[target]}</p>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="hidden sm:block text-[10px] text-neutral-500">
+            Esc で閉じる
+          </span>
+          <button
+            onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all duration-150"
+          >
+            <X className="w-4.5 h-4.5" />
+          </button>
+        </div>
+      </div>
+
+      {/* コンテンツ */}
+      <motion.div
+        initial={{ opacity: 0, y: 12 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.08, duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        className="flex-1 overflow-y-auto p-5 md:p-10"
+      >
+        {target === "chart" && data.chartData && data.chartData.length > 0 && (
+          <div className="h-full min-h-[500px]">
+            <StatChart data={data.chartData} t={t} fullscreen />
+          </div>
+        )}
+        {target === "tier" && (
+          <div className="max-w-5xl mx-auto">
+            <TierTable plans={plans} />
+          </div>
+        )}
+      </motion.div>
+
+      {/* フッター著作権 */}
+      <div className="flex-none border-t border-neutral-800 py-2.5 text-center">
+        <p className="text-[10px] text-neutral-600">
+          © 2026 scia-nexus® Developer Team. All Rights Reserved.
+        </p>
+      </div>
+    </motion.div>
+  );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  メインコンポーネント
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export function ResultPanel({ data, t }: ResultPanelProps) {
-  const [outerTab, setOuterTab] = useState<OuterTab>("overview");
-  const [innerTab, setInnerTab] = useState<InnerTab>("practical");
+  const [outerTab,   setOuterTab]   = useState<OuterTab>("overview");
+  const [innerTab,   setInnerTab]   = useState<InnerTab>("practical");
+  const [fullscreen, setFullscreen] = useState<FullscreenTarget>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { copyMarkdown, downloadPng, copyDone, downloadDone, exporting } = useExport(panelRef);
+  const { copyReport, downloadPng, copyDone, downloadDone, exporting } = useExport(panelRef);
 
   const hasPractical = (data.practicalPlans?.length ?? 0) > 0;
   const hasAcademic  = (data.academicPlans?.length  ?? 0) > 0;
@@ -162,267 +230,279 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
   ];
 
   return (
-    <div ref={panelRef} className="space-y-4">
-
-      {/* フォールバック警告 */}
-      {data.isFallback && (
-        <motion.div
-          initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
-          className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50"
-        >
-          <AlertTriangle className="w-4 h-4 text-amber-500 flex-none mt-0.5" />
-          <div>
-            <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{t?.demoWarningTitle}</p>
-            <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">{data.errorMessage}</p>
-          </div>
-        </motion.div>
-      )}
-
-      {/* メタバッジ + エクスポートボタン */}
-      <div className="flex items-center gap-2 flex-wrap">
-        {/* キャッシュバッジ */}
-        {data.fromCache && (
-          <motion.span
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-medium"
-          >
-            <Database className="w-3 h-3" />キャッシュ
-          </motion.span>
+    <>
+      {/* フルスクリーンオーバーレイ（Portalと同等のz-index） */}
+      <AnimatePresence>
+        {fullscreen && (
+          <FullscreenOverlay
+            target={fullscreen}
+            innerTab={innerTab}
+            data={data}
+            t={t}
+            onClose={() => setFullscreen(null)}
+          />
         )}
+      </AnimatePresence>
 
-        <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 font-medium">
-          <Zap className="w-3 h-3" />{data.provider} / {data.model}
-        </span>
-        {data.latencyMs > 0 && (
-          <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium">
-            <Clock className="w-3 h-3" />{(data.latencyMs / 1000).toFixed(2)}s
-          </span>
-        )}
+      <div ref={panelRef} className="space-y-4">
 
-        {/* ─── エクスポートボタン群（右寄せ） ─── */}
-        <div className="ml-auto flex items-center gap-1.5">
-          {/* テキストコピー */}
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            onClick={() => copyMarkdown(data)}
-            title="Markdown形式でコピー（Word・Google Docsに貼り付け可能）"
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all duration-150 ${
-              copyDone
-                ? "bg-emerald-500 border-emerald-500 text-white"
-                : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-violet-400 hover:text-violet-500 dark:hover:text-violet-400 bg-white dark:bg-neutral-900"
-            }`}
-          >
-            {copyDone
-              ? <><Check className="w-3 h-3" />コピー完了</>
-              : <><Copy className="w-3 h-3" />テキストコピー</>
-            }
-          </motion.button>
-
-          {/* PNG ダウンロード */}
-          <motion.button
-            whileTap={{ scale: 0.92 }}
-            onClick={downloadPng}
-            disabled={exporting}
-            title="結果全体をPNG画像として保存（発表スライドに貼り付け可能）"
-            className={`flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all duration-150 ${
-              downloadDone
-                ? "bg-emerald-500 border-emerald-500 text-white"
-                : exporting
-                  ? "border-neutral-200 dark:border-neutral-700 text-neutral-300 dark:text-neutral-600 bg-white dark:bg-neutral-900 cursor-wait"
-                  : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-cyan-400 hover:text-cyan-500 dark:hover:text-cyan-400 bg-white dark:bg-neutral-900"
-            }`}
-          >
-            {downloadDone
-              ? <><Check className="w-3 h-3" />保存完了</>
-              : exporting
-                ? <><Download className="w-3 h-3 animate-bounce" />変換中…</>
-                : <><Download className="w-3 h-3" />PNG保存</>
-            }
-          </motion.button>
-        </div>
-      </div>
-
-      {/* 研究分野 / 手法 / 指標カード */}
-      <motion.div
-        className="grid grid-cols-1 gap-3"
-        initial="hidden"
-        animate="visible"
-        variants={{
-          hidden: {},
-          visible: { transition: { staggerChildren: 0.07 } },
-        }}
-      >
-        {[
-          { emoji: "🎯", label: t?.fieldLabel   ?? "研究分野",  content: data.field.replace(/^🎯\s*/,  ""), gradient: "from-violet-500/10 to-fuchsia-500/10", border: "border-violet-200 dark:border-violet-800/50",   textColor: "text-violet-700 dark:text-violet-300"  },
-          { emoji: "🔬", label: t?.methodLabel  ?? "研究手法",  content: data.method.replace(/^🔬\s*/, ""), gradient: "from-cyan-500/10 to-blue-500/10",       border: "border-cyan-200 dark:border-cyan-800/50",       textColor: "text-cyan-700 dark:text-cyan-300"      },
-          { emoji: "📊", label: t?.metricsLabel ?? "統計指標",  content: data.metrics.replace(/^📊\s*/,""), gradient: "from-emerald-500/10 to-teal-500/10",   border: "border-emerald-200 dark:border-emerald-800/50", textColor: "text-emerald-700 dark:text-emerald-300"},
-        ].map(({ emoji, label, content, gradient, border, textColor }) => (
+        {/* フォールバック警告 */}
+        {data.isFallback && (
           <motion.div
-            key={label}
-            variants={{
-              hidden:   { opacity: 0, y: 12, scale: 0.97 },
-              visible:  { opacity: 1, y: 0,  scale: 1, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
-            }}
+            initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+            className="flex items-start gap-3 p-3 rounded-xl bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50"
           >
-            <ResultCard emoji={emoji} label={label} content={content} gradient={gradient} border={border} textColor={textColor} />
+            <AlertTriangle className="w-4 h-4 text-amber-500 flex-none mt-0.5" />
+            <div>
+              <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{t?.demoWarningTitle}</p>
+              <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">{data.errorMessage}</p>
+            </div>
           </motion.div>
-        ))}
-      </motion.div>
+        )}
 
-      {/* ━━━ 外側3タブ ━━━ */}
-      <motion.div
-        initial={{ opacity: 0, y: 14 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.22, duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
-        className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden"
-      >
-        {/* タブバー */}
-        <div className="flex border-b border-neutral-200 dark:border-neutral-800">
-          {outerTabs.map(({ key, label, enabled }) => (
-            <button key={key} onClick={() => setOuterTab(key)} disabled={!enabled}
-              className={`relative flex-1 py-3 text-xs font-semibold transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
-                outerTab === key
-                  ? "text-violet-600 dark:text-violet-400"
-                  : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+        {/* ━━━ メタバッジ + エクスポートボタン ━━━ */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {data.fromCache && (
+            <motion.span
+              initial={{ opacity: 0, scale: 0.8 }} animate={{ opacity: 1, scale: 1 }}
+              className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-emerald-100 dark:bg-emerald-900/30 text-emerald-600 dark:text-emerald-400 font-medium"
+            >
+              <Database className="w-3 h-3" />キャッシュ
+            </motion.span>
+          )}
+          <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-violet-100 dark:bg-violet-900/30 text-violet-600 dark:text-violet-400 font-medium">
+            <Zap className="w-3 h-3" />{data.provider} / {data.model}
+          </span>
+          {data.latencyMs > 0 && (
+            <span className="flex items-center gap-1 text-xs px-2.5 py-1 rounded-full bg-neutral-100 dark:bg-neutral-800 text-neutral-500 dark:text-neutral-400 font-medium">
+              <Clock className="w-3 h-3" />{(data.latencyMs / 1000).toFixed(2)}s
+            </span>
+          )}
+
+          <div className="ml-auto flex items-center gap-1.5">
+            {/* ── レポート用コピー（Notion風） ── */}
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={() => copyReport(data)}
+              title="Word・Notion・Google Docs にそのまま貼り付けられるMarkdown形式でコピー"
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150 ${
+                copyDone
+                  ? "bg-emerald-500 border-emerald-500 text-white"
+                  : "border-violet-200 dark:border-violet-800/60 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 bg-white dark:bg-neutral-900"
               }`}
             >
-              {label}
-              {outerTab === key && (
-                <motion.span layoutId="outer-tab-indicator"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-cyan-500" />
-              )}
-            </button>
+              {copyDone
+                ? <><Check className="w-3 h-3" />コピー完了！</>
+                : <><Copy className="w-3 h-3" />レポート用にコピー</>
+              }
+            </motion.button>
+
+            {/* ── PNG 保存 ── */}
+            <motion.button
+              whileTap={{ scale: 0.92 }}
+              onClick={downloadPng}
+              disabled={exporting}
+              title="結果全体をPNG画像として保存（発表スライドへ一発貼り付け）"
+              className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150 ${
+                downloadDone
+                  ? "bg-emerald-500 border-emerald-500 text-white"
+                  : exporting
+                    ? "border-neutral-200 dark:border-neutral-700 text-neutral-300 dark:text-neutral-600 bg-white dark:bg-neutral-900 cursor-wait"
+                    : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-cyan-400 hover:text-cyan-500 bg-white dark:bg-neutral-900"
+              }`}
+            >
+              {downloadDone ? <><Check className="w-3 h-3" />保存完了</> : exporting ? <><Download className="w-3 h-3 animate-bounce" />変換中</> : <><Download className="w-3 h-3" />PNG</>}
+            </motion.button>
+          </div>
+        </div>
+
+        {/* ━━━ 研究分野 / 手法 / 指標カード ━━━ */}
+        <motion.div
+          className="grid grid-cols-1 gap-3"
+          initial="hidden"
+          animate="visible"
+          variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.07 } } }}
+        >
+          {[
+            { emoji: "🎯", label: t?.fieldLabel   ?? "研究分野",  content: data.field.replace(/^🎯\s*/,  ""), gradient: "from-violet-500/10 to-fuchsia-500/10", border: "border-violet-200 dark:border-violet-800/50",   textColor: "text-violet-700 dark:text-violet-300"   },
+            { emoji: "🔬", label: t?.methodLabel  ?? "研究手法",  content: data.method.replace(/^🔬\s*/, ""), gradient: "from-cyan-500/10 to-blue-500/10",       border: "border-cyan-200 dark:border-cyan-800/50",     textColor: "text-cyan-700 dark:text-cyan-300"       },
+            { emoji: "📊", label: t?.metricsLabel ?? "統計指標",  content: data.metrics.replace(/^📊\s*/,""), gradient: "from-emerald-500/10 to-teal-500/10",   border: "border-emerald-200 dark:border-emerald-800/50",textColor: "text-emerald-700 dark:text-emerald-300" },
+          ].map(({ emoji, label, content, gradient, border, textColor }) => (
+            <motion.div
+              key={label}
+              variants={{
+                hidden:   { opacity: 0, y: 12, scale: 0.97 },
+                visible:  { opacity: 1, y: 0,  scale: 1, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
+              }}
+            >
+              <ResultCard emoji={emoji} label={label} content={content} gradient={gradient} border={border} textColor={textColor} />
+            </motion.div>
           ))}
-        </div>
-
-        <div className="p-4 min-h-[140px]">
-          <AnimatePresence mode="wait">
-
-            {/* 概要タブ */}
-            {outerTab === "overview" && (
-              <motion.div key="overview"
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
-              >
-                <p className="text-sm text-neutral-700 dark:text-neutral-200 leading-relaxed whitespace-pre-wrap">
-                  {data.explanation}
-                </p>
-              </motion.div>
-            )}
-
-            {/* 詳細分析タブ */}
-            {outerTab === "detailed" && (
-              <motion.div key="detailed"
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
-              >
-                {data.detailedExplanation
-                  ? <p className="text-sm text-neutral-700 dark:text-neutral-200 leading-relaxed whitespace-pre-wrap">{data.detailedExplanation}</p>
-                  : <p className="text-sm text-neutral-400 italic">詳細な解説はありません</p>
-                }
-              </motion.div>
-            )}
-
-            {/* 実用案タブ（ティア表） */}
-            {outerTab === "actions" && (
-              <motion.div key="actions"
-                initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
-                transition={{ duration: 0.18 }}
-              >
-                {/* 内側タブバー */}
-                <div className="flex gap-1 p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800/60 mb-4">
-                  <InnerTabButton
-                    active={innerTab === "practical"}
-                    label={t?.practicalPlansLabel ?? "💡 日常の具体案"}
-                    onClick={() => setInnerTab("practical")}
-                    disabled={!hasPractical}
-                    color="amber"
-                  />
-                  <InnerTabButton
-                    active={innerTab === "academic"}
-                    label={t?.academicPlansLabel  ?? "🔬 研究・調査の手順"}
-                    onClick={() => setInnerTab("academic")}
-                    disabled={!hasAcademic}
-                    color="violet"
-                  />
-                </div>
-
-                {/* ティア表コンテンツ */}
-                <AnimatePresence mode="wait">
-                  {innerTab === "practical" && (
-                    <motion.div key="practical"
-                      initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }}
-                      transition={{ duration: 0.18 }}
-                    >
-                      <TierTable plans={data.practicalPlans ?? []} />
-                    </motion.div>
-                  )}
-                  {innerTab === "academic" && (
-                    <motion.div key="academic"
-                      initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}
-                      transition={{ duration: 0.18 }}
-                    >
-                      <TierTable plans={data.academicPlans ?? []} />
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </motion.div>
-            )}
-
-          </AnimatePresence>
-        </div>
-      </motion.div>
-
-      {/* 統計グラフ */}
-      {data.chartData && data.chartData.length > 0 && (
-        <motion.div
-          initial={{ opacity: 0, y: 16, scale: 0.98 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          transition={{ delay: 0.32, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
-          className="p-4 rounded-2xl bg-neutral-950 dark:bg-neutral-900 border border-neutral-800 shadow-sm"
-        >
-          <StatChart data={data.chartData} t={t} />
         </motion.div>
-      )}
 
-      {/* ソース */}
-      {data.sources && data.sources.length > 0 && (
+        {/* ━━━ 3タブパネル ━━━ */}
         <motion.div
-          initial={{ opacity: 0, y: 12 }}
+          initial={{ opacity: 0, y: 14 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.38, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
-          className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm"
+          transition={{ delay: 0.22, duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          className="bg-white dark:bg-neutral-900 rounded-2xl border border-neutral-200 dark:border-neutral-800 shadow-sm overflow-hidden"
         >
-          <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3">
-            {t?.sourcesLabel ?? "参考文献"}
-          </p>
-          <ul className="space-y-2">
-            {data.sources.map((src, i) => (
-              <li key={i} className="flex items-start gap-2">
-                <span className="text-xs text-neutral-400 flex-none mt-0.5 font-mono w-4">{i + 1}.</span>
-                <div className="flex-1 min-w-0">
-                  {src.url
-                    ? <a href={src.url} target="_blank" rel="noopener noreferrer"
-                        className="text-sm text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 break-all">
-                        {src.title}<ExternalLink className="w-3 h-3 flex-none" />
-                      </a>
-                    : <span className="text-sm text-neutral-600 dark:text-neutral-300">{src.title}</span>
-                  }
-                </div>
-              </li>
+          {/* タブバー */}
+          <div className="flex border-b border-neutral-200 dark:border-neutral-800">
+            {outerTabs.map(({ key, label, enabled }) => (
+              <button key={key} onClick={() => setOuterTab(key)} disabled={!enabled}
+                className={`relative flex-1 py-3 text-xs font-semibold transition-colors duration-150 disabled:opacity-40 disabled:cursor-not-allowed ${
+                  outerTab === key ? "text-violet-600 dark:text-violet-400" : "text-neutral-500 dark:text-neutral-400 hover:text-neutral-700 dark:hover:text-neutral-200"
+                }`}
+              >
+                {label}
+                {outerTab === key && (
+                  <motion.span layoutId="outer-tab-indicator"
+                    className="absolute bottom-0 left-0 right-0 h-0.5 bg-gradient-to-r from-violet-500 to-cyan-500" />
+                )}
+              </button>
             ))}
-          </ul>
+          </div>
+
+          <div className="p-4 min-h-[140px]">
+            <AnimatePresence mode="wait">
+
+              {outerTab === "overview" && (
+                <motion.div key="overview"
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  <p className="text-sm text-neutral-700 dark:text-neutral-200 leading-relaxed whitespace-pre-wrap">
+                    {data.explanation}
+                  </p>
+                </motion.div>
+              )}
+
+              {outerTab === "detailed" && (
+                <motion.div key="detailed"
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  {data.detailedExplanation
+                    ? <p className="text-sm text-neutral-700 dark:text-neutral-200 leading-relaxed whitespace-pre-wrap">{data.detailedExplanation}</p>
+                    : <p className="text-sm text-neutral-400 italic">詳細な解説はありません</p>
+                  }
+                </motion.div>
+              )}
+
+              {outerTab === "actions" && (
+                <motion.div key="actions"
+                  initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
+                  transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+                >
+                  {/* 内タブ + 拡大ボタン */}
+                  <div className="flex items-center gap-2 mb-4">
+                    <div className="flex flex-1 gap-1 p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800/60">
+                      <InnerTabButton active={innerTab === "practical"} label={t?.practicalPlansLabel ?? "💡 日常の具体案"}
+                        onClick={() => setInnerTab("practical")} disabled={!hasPractical} color="amber" />
+                      <InnerTabButton active={innerTab === "academic"} label={t?.academicPlansLabel ?? "🔬 研究・調査の手順"}
+                        onClick={() => setInnerTab("academic")} disabled={!hasAcademic} color="violet" />
+                    </div>
+                    {/* プレゼンモードボタン */}
+                    <button
+                      onClick={() => setFullscreen("tier")}
+                      title="フルスクリーンで表示（発表・スクリーンショット用）"
+                      className="flex-none w-8 h-8 flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-violet-500 hover:border-violet-400 bg-white dark:bg-neutral-900 transition-all duration-150"
+                    >
+                      <Maximize2 className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
+
+                  <AnimatePresence mode="wait">
+                    {innerTab === "practical" && (
+                      <motion.div key="practical"
+                        initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: 12 }}
+                        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                      >
+                        <TierTable plans={data.practicalPlans ?? []} />
+                      </motion.div>
+                    )}
+                    {innerTab === "academic" && (
+                      <motion.div key="academic"
+                        initial={{ opacity: 0, x: 12 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -12 }}
+                        transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+                      >
+                        <TierTable plans={data.academicPlans ?? []} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.div>
+              )}
+
+            </AnimatePresence>
+          </div>
         </motion.div>
-      )}
-    </div>
+
+        {/* ━━━ 統計グラフ ━━━ */}
+        {data.chartData && data.chartData.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 16, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: 0.3, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
+            className="rounded-2xl bg-neutral-950 dark:bg-neutral-900 border border-neutral-800 shadow-sm overflow-hidden"
+          >
+            {/* グラフヘッダー + 拡大ボタン */}
+            <div className="flex items-center justify-between px-4 pt-4 pb-2">
+              <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
+                {t?.chartTitle ?? "統計グラフ"}
+              </p>
+              <button
+                onClick={() => setFullscreen("chart")}
+                title="グラフをフルスクリーンで表示（発表・画面共有用）"
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:text-violet-400 hover:bg-neutral-800 transition-all duration-150"
+              >
+                <Maximize2 className="w-3.5 h-3.5" />
+              </button>
+            </div>
+            <div className="px-4 pb-4">
+              <StatChart data={data.chartData} t={t} />
+            </div>
+          </motion.div>
+        )}
+
+        {/* ━━━ 参考文献 ━━━ */}
+        {data.sources && data.sources.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.36, duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+            className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm"
+          >
+            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3">
+              {t?.sourcesLabel ?? "参考文献"}
+            </p>
+            <ul className="space-y-2">
+              {data.sources.map((src, i) => (
+                <li key={i} className="flex items-start gap-2">
+                  <span className="text-xs text-neutral-400 flex-none mt-0.5 font-mono w-4">{i + 1}.</span>
+                  <div className="flex-1 min-w-0">
+                    {src.url
+                      ? <a href={src.url} target="_blank" rel="noopener noreferrer"
+                          className="text-sm text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 break-all">
+                          {src.title}<ExternalLink className="w-3 h-3 flex-none" />
+                        </a>
+                      : <span className="text-sm text-neutral-600 dark:text-neutral-300">{src.title}</span>
+                    }
+                  </div>
+                </li>
+              ))}
+            </ul>
+          </motion.div>
+        )}
+      </div>
+    </>
   );
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  TierTable — スタガーアニメーション付きティア表
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function TierTable({ plans }: { plans: TierItem[] }) {
+export function TierTable({ plans }: { plans: TierItem[] }) {
   if (!plans || plans.length === 0) {
     return <p className="text-sm text-neutral-400 italic">データがありません</p>;
   }
@@ -439,7 +519,7 @@ function TierTable({ plans }: { plans: TierItem[] }) {
       animate="visible"
       variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.09 } } }}
     >
-      {/* ヘッダー行（デスクトップのみ） */}
+      {/* ヘッダー（デスクトップのみ） */}
       <div className="hidden md:flex items-center gap-2 mb-1 px-1">
         <span className="w-12 flex-none" />
         <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest" style={{ width: "38%" }}>
@@ -460,14 +540,11 @@ function TierTable({ plans }: { plans: TierItem[] }) {
             key={tier}
             variants={{
               hidden:  { opacity: 0, x: -18, scale: 0.97 },
-              visible: {
-                opacity: 1, x: 0, scale: 1,
-                transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] },
-              },
+              visible: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] } },
             }}
             className={`flex rounded-xl border ${cfg.borderColor} overflow-hidden shadow-sm ${cfg.glowColor}`}
           >
-            {/* ティアバッジ縦プレート */}
+            {/* ティアバッジ */}
             <div className={`flex-none w-12 flex flex-col items-center justify-center bg-gradient-to-b ${cfg.badgeGradient} py-3 gap-1`}>
               <span className="text-white font-black text-2xl leading-none drop-shadow-md">{tier}</span>
               <span className="text-white/80 text-[8px] font-bold tracking-wider leading-none">{cfg.label}</span>
@@ -483,15 +560,10 @@ function TierTable({ plans }: { plans: TierItem[] }) {
                   transition={{ delay: 0.06 + i * 0.05, duration: 0.2 }}
                   className="flex flex-col md:flex-row min-h-[56px]"
                 >
-                  {/* 左列: アクション */}
                   <div className={`w-full md:w-auto md:flex-none px-3 py-2.5 md:py-3 ${cfg.rowBg}`}>
                     <div className="md:hidden text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">アクション</div>
-                    <p className={`text-xs font-bold ${cfg.actionColor} leading-snug md:w-[220px] lg:w-auto`}>
-                      {item.action}
-                    </p>
+                    <p className={`text-xs font-bold ${cfg.actionColor} leading-snug md:w-[220px] lg:w-auto`}>{item.action}</p>
                   </div>
-
-                  {/* 右列: インサイト */}
                   <div className="flex-1 px-3 py-2.5 md:py-3 bg-white/60 dark:bg-neutral-800/40 border-t md:border-t-0 md:border-l border-neutral-200/50 dark:border-neutral-700/40">
                     <div className="md:hidden text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">＋α 解説</div>
                     <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
@@ -511,15 +583,12 @@ function TierTable({ plans }: { plans: TierItem[] }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  サブコンポーネント
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function InnerTabButton({
-  active, label, onClick, disabled, color,
-}: {
+function InnerTabButton({ active, label, onClick, disabled, color }: {
   active: boolean; label: string; onClick: () => void; disabled: boolean; color: "amber" | "violet";
 }) {
   const activeClass = color === "amber"
     ? "bg-white dark:bg-neutral-700 text-amber-600 dark:text-amber-400 shadow-sm"
     : "bg-white dark:bg-neutral-700 text-violet-600 dark:text-violet-400 shadow-sm";
-
   return (
     <button onClick={onClick} disabled={disabled}
       className={`flex-1 py-1.5 px-2 rounded-lg text-xs font-semibold transition-all duration-200 disabled:opacity-40 disabled:cursor-not-allowed ${
@@ -532,8 +601,7 @@ function InnerTabButton({
 }
 
 function ResultCard({ emoji, label, content, gradient, border, textColor }: {
-  emoji: string; label: string; content: string;
-  gradient: string; border: string; textColor: string;
+  emoji: string; label: string; content: string; gradient: string; border: string; textColor: string;
 }) {
   return (
     <div className={`p-4 rounded-2xl bg-gradient-to-br ${gradient} border ${border}`}>

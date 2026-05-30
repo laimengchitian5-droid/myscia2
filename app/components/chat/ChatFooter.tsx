@@ -271,6 +271,13 @@ export function ChatFooter({
             </p>
           )}
         </div>
+
+        {/* Copyright */}
+        <div className="py-1.5 text-center">
+          <p className="text-[9px] text-neutral-300 dark:text-neutral-700 select-none">
+            © 2026 scia-nexus® Developer Team. All Rights Reserved.
+          </p>
+        </div>
       </footer>
     </>
   );

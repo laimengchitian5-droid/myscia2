@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar,
   LineChart, Line,
@@ -24,6 +25,7 @@ type ChartType = "bar" | "line" | "area" | "pie" | "radar" | "composed";
 interface StatChartProps {
   data: ChartDataPoint[];
   t: Translations;
+  fullscreen?: boolean;  // フルスクリーンモード時 true → グラフ高さを拡大
 }
 
 // ── デザイントークン ──────────────────────────────────
@@ -121,11 +123,19 @@ function renderPieLabel({
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  メインコンポーネント
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-export function StatChart({ data, t }: StatChartProps) {
+export function StatChart({ data, t, fullscreen = false }: StatChartProps) {
   const [chartType, setChartType] = useState<ChartType>("bar");
 
   if (!data || data.length === 0) return null;
   if (!t?.chartTypes) return null;
+
+  // フルスクリーン時はグラフを大きく表示
+  const H_NORMAL = 210;
+  const H_PIE_NORMAL = 300;
+  const H_RADAR_NORMAL = 240;
+  const H      = fullscreen ? 460 : H_NORMAL;
+  const H_PIE  = fullscreen ? 540 : H_PIE_NORMAL;
+  const H_RADAR = fullscreen ? 480 : H_RADAR_NORMAL;
 
   const types: { key: ChartType; label: string; Icon: React.ElementType }[] = [
     { key: "bar",      label: t.chartTypes.bar,      Icon: BarChart3     },
@@ -169,14 +179,24 @@ export function StatChart({ data, t }: StatChartProps) {
         })}
       </div>
 
-      {/* ─── グラフ本体 ─── */}
+      {/* ─── グラフ本体（AnimatePresence で滑らかなタイプ切り替え） ─── */}
       <div className="w-full">
-        {chartType === "bar"      && <BarChartView      data={data} />}
-        {chartType === "line"     && <LineChartView     data={data} />}
-        {chartType === "area"     && <AreaChartView     data={data} />}
-        {chartType === "pie"      && <PieChartView      data={data} />}
-        {chartType === "radar"    && <RadarChartView    data={data} />}
-        {chartType === "composed" && <ComposedChartView data={data} />}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={chartType}
+            initial={{ opacity: 0, scale: 0.98 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.98 }}
+            transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          >
+            {chartType === "bar"      && <BarChartView      data={data} height={H} />}
+            {chartType === "line"     && <LineChartView     data={data} height={H} />}
+            {chartType === "area"     && <AreaChartView     data={data} height={H} />}
+            {chartType === "pie"      && <PieChartView      data={data} height={H_PIE} />}
+            {chartType === "radar"    && <RadarChartView    data={data} height={H_RADAR} />}
+            {chartType === "composed" && <ComposedChartView data={data} height={H} />}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {/* ─── カスタム凡例（円・レーダー以外） ─── */}
@@ -203,9 +223,9 @@ export function StatChart({ data, t }: StatChartProps) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  1. 棒グラフ
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function BarChartView({ data }: { data: ChartDataPoint[] }) {
+function BarChartView({ data, height }: { data: ChartDataPoint[]; height: number }) {
   return (
-    <ResponsiveContainer width="100%" height={210}>
+    <ResponsiveContainer width="100%" height={height}>
       <BarChart data={data} margin={{ top: 8, right: 8, bottom: 5, left: -10 }}>
         <defs>
           {data.map((_, i) => (
@@ -232,9 +252,9 @@ function BarChartView({ data }: { data: ChartDataPoint[] }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  2. 折れ線グラフ
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function LineChartView({ data }: { data: ChartDataPoint[] }) {
+function LineChartView({ data, height }: { data: ChartDataPoint[]; height: number }) {
   return (
-    <ResponsiveContainer width="100%" height={210}>
+    <ResponsiveContainer width="100%" height={height}>
       <LineChart data={data} margin={{ top: 8, right: 8, bottom: 5, left: -10 }}>
         <defs>
           <linearGradient id="lineGlow" x1="0" y1="0" x2="1" y2="0">
@@ -272,9 +292,9 @@ function LineChartView({ data }: { data: ChartDataPoint[] }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  3. エリアグラフ
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function AreaChartView({ data }: { data: ChartDataPoint[] }) {
+function AreaChartView({ data, height }: { data: ChartDataPoint[]; height: number }) {
   return (
-    <ResponsiveContainer width="100%" height={210}>
+    <ResponsiveContainer width="100%" height={height}>
       <AreaChart data={data} margin={{ top: 8, right: 8, bottom: 5, left: -10 }}>
         <defs>
           <linearGradient id="areaGradFill" x1="0" y1="0" x2="0" y2="1">
@@ -310,9 +330,9 @@ function AreaChartView({ data }: { data: ChartDataPoint[] }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  4. 円グラフ（引き出し線付きカスタムラベル）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function PieChartView({ data }: { data: ChartDataPoint[] }) {
+function PieChartView({ data, height }: { data: ChartDataPoint[]; height: number }) {
   return (
-    <ResponsiveContainer width="100%" height={300}>
+    <ResponsiveContainer width="100%" height={height}>
       <RechartsPieChart>
         <defs>
           {data.map((_, i) => (
@@ -333,7 +353,8 @@ function PieChartView({ data }: { data: ChartDataPoint[] }) {
           paddingAngle={3}
           isAnimationActive
           animationDuration={800}
-          label={(props: PieLabelProps) => renderPieLabel(props)}
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          label={(props: any) => renderPieLabel(props as PieLabelProps)}
           labelLine={false}
         >
           {data.map((_, i) => (
@@ -357,9 +378,9 @@ function PieChartView({ data }: { data: ChartDataPoint[] }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  5. レーダーチャート（クモの巣グラフ）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function RadarChartView({ data }: { data: ChartDataPoint[] }) {
+function RadarChartView({ data, height }: { data: ChartDataPoint[]; height: number }) {
   return (
-    <ResponsiveContainer width="100%" height={240}>
+    <ResponsiveContainer width="100%" height={height}>
       <RadarChart data={data} margin={{ top: 10, right: 30, bottom: 10, left: 30 }}>
         <defs>
           <linearGradient id="radarFill" x1="0" y1="0" x2="1" y2="1">
@@ -402,9 +423,9 @@ function RadarChartView({ data }: { data: ChartDataPoint[] }) {
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  6. 複合グラフ（棒 + 折れ線）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-function ComposedChartView({ data }: { data: ChartDataPoint[] }) {
+function ComposedChartView({ data, height }: { data: ChartDataPoint[]; height: number }) {
   return (
-    <ResponsiveContainer width="100%" height={210}>
+    <ResponsiveContainer width="100%" height={height}>
       <ComposedChart data={data} margin={{ top: 8, right: 8, bottom: 5, left: -10 }}>
         <defs>
           {data.map((_, i) => (

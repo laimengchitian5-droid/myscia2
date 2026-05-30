@@ -101,8 +101,8 @@ export function Sidebar({
               <div className="w-6 h-6 rounded-lg bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-500 flex items-center justify-center flex-none">
                 <FlaskConical className="w-3 h-3 text-white" />
               </div>
-              <span className="font-bold text-sm text-neutral-900 dark:text-white whitespace-nowrap">
-                Scia<span className="bg-gradient-to-r from-violet-500 to-cyan-500 bg-clip-text text-transparent">Source</span>
+              <span className="font-black text-sm text-neutral-900 dark:text-white whitespace-nowrap tracking-tight">
+                scia-nexus<sup className="text-[8px] font-bold text-violet-500 ml-px">®</sup>
               </span>
             </motion.div>
           )}

@@ -9,10 +9,12 @@ import type { ChatMessage, ChatThread, ThreadSettings } from "@/app/types/chat";
 import type { Translations } from "@/app/lib/i18n/translations";
 import { TRANSLATIONS } from "@/app/lib/i18n/translations";
 import { buildCacheKey, getCache, setCache } from "@/app/lib/cache";
-import { FlaskConical } from "lucide-react";
+import { FlaskConical, Microscope, BarChart2, MessageSquare } from "lucide-react";
 import { motion } from "framer-motion";
 
-// UserType の内部値テーブル
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  定数
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const INTERNAL_USER_TYPES: UserType[] = [
   "中学生", "高校生", "大学生", "大学院生",
   "大卒社会人", "大学院卒社会人", "シニア社会人",
@@ -29,21 +31,44 @@ const DEFAULT_SETTINGS: ThreadSettings = {
   plan:          "personal",
 };
 
+// LocalStorage キー（v1 バージョン管理）
+const LS = {
+  threads:  "scia_nexus_threads_v1",
+  trash:    "scia_nexus_trash_v1",
+  activeId: "scia_nexus_active_v1",
+  settings: "scia_nexus_settings_v1",
+  theme:    "scia_nexus_theme_v1",
+  lang:     "scia_nexus_lang_v1",
+} as const;
+
+function readLS<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key);
+    return raw ? (JSON.parse(raw) as T) : fallback;
+  } catch { return fallback; }
+}
+
+function writeLS(key: string, value: unknown): void {
+  try { localStorage.setItem(key, JSON.stringify(value)); } catch { /* quota exceeded */ }
+}
+
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  メインページ
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export default function HomePage() {
+  // Hydrationエラーを防ぐためのフラグ（SSR と CSR の初期レンダリングを同一にする）
+  const [hydrated,        setHydrated]        = useState(false);
+
   const [isDark,          setIsDark]          = useState(false);
   const [lang,            setLang]            = useState<Lang>("ja");
   const [sidebarExpanded, setSidebarExpanded] = useState(false);
   const [mobileDrawer,    setMobileDrawer]    = useState(false);
 
-  const [threads,        setThreads]        = useState<ChatThread[]>([]);
-  const [trashedThreads, setTrashedThreads] = useState<ChatThread[]>([]);
-  const [activeThreadId, setActiveThreadId] = useState<string | null>(null);
+  const [threads,         setThreads]         = useState<ChatThread[]>([]);
+  const [trashedThreads,  setTrashedThreads]  = useState<ChatThread[]>([]);
+  const [activeThreadId,  setActiveThreadId]  = useState<string | null>(null);
   const [loadingThreadId, setLoadingThreadId] = useState<string | null>(null);
-
-  const [globalSettings, setGlobalSettings] = useState<ThreadSettings>(DEFAULT_SETTINGS);
+  const [globalSettings,  setGlobalSettings]  = useState<ThreadSettings>(DEFAULT_SETTINGS);
 
   const t: Translations = TRANSLATIONS[lang] ?? TRANSLATIONS.ja;
 
@@ -62,25 +87,50 @@ export default function HomePage() {
       }
     : globalSettings;
 
-  // ── useEffect ──────────────────────────────
+  // ── 初回マウント：LocalStorage から復元（hydration-safe） ─────
   useEffect(() => {
-    const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-    setIsDark(prefersDark);
-  }, []);
+    // テーマ（保存済み優先 → OSのダークモード設定）
+    const savedTheme = readLS<boolean | null>(LS.theme, null);
+    setIsDark(savedTheme ?? window.matchMedia("(prefers-color-scheme: dark)").matches);
 
-  useEffect(() => {
-    document.documentElement.classList.toggle("dark", isDark);
-  }, [isDark]);
-
-  useEffect(() => {
-    const browserLangs = navigator.languages ?? [navigator.language];
-    for (const bl of browserLangs) {
-      const code = bl.slice(0, 2) as Lang;
-      if (SUPPORTED_LANGS.includes(code)) { setLang(code); break; }
+    // 言語（保存済み優先 → ブラウザ言語）
+    const savedLang = readLS<Lang | null>(LS.lang, null);
+    if (savedLang && SUPPORTED_LANGS.includes(savedLang)) {
+      setLang(savedLang);
+    } else {
+      for (const bl of (navigator.languages ?? [navigator.language])) {
+        const code = bl.slice(0, 2) as Lang;
+        if (SUPPORTED_LANGS.includes(code)) { setLang(code); break; }
+      }
     }
-  }, []);
 
-  // ── スレッド操作 ──────────────────────────
+    // 履歴の復元
+    const restoredThreads = readLS<ChatThread[]>(LS.threads, []);
+    const restoredActiveId = readLS<string | null>(LS.activeId, null);
+    setThreads(restoredThreads);
+    setTrashedThreads(readLS<ChatThread[]>(LS.trash, []));
+    // 復元したスレッドに含まれる ID のみ有効にする（データ破損防止）
+    setActiveThreadId(
+      restoredActiveId && restoredThreads.some((t) => t.id === restoredActiveId)
+        ? restoredActiveId
+        : null
+    );
+    setGlobalSettings(readLS<ThreadSettings>(LS.settings, DEFAULT_SETTINGS));
+
+    setHydrated(true);
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── LocalStorage への自動保存（hydration 完了後のみ） ────────
+  useEffect(() => { document.documentElement.classList.toggle("dark", isDark); }, [isDark]);
+
+  useEffect(() => { if (hydrated) writeLS(LS.threads,  threads);        }, [threads,        hydrated]);
+  useEffect(() => { if (hydrated) writeLS(LS.trash,    trashedThreads); }, [trashedThreads, hydrated]);
+  useEffect(() => { if (hydrated) writeLS(LS.activeId, activeThreadId); }, [activeThreadId, hydrated]);
+  useEffect(() => { if (hydrated) writeLS(LS.settings, globalSettings); }, [globalSettings, hydrated]);
+  useEffect(() => { if (hydrated) writeLS(LS.theme,    isDark);          }, [isDark,         hydrated]);
+  useEffect(() => { if (hydrated) writeLS(LS.lang,     lang);            }, [lang,           hydrated]);
+
+  // ── スレッド操作 ─────────────────────────────────────────
   const handleNewChat = useCallback(() => {
     setActiveThreadId(null);
     setMobileDrawer(false);
@@ -88,6 +138,7 @@ export default function HomePage() {
 
   const handleSelectThread = useCallback((id: string) => {
     setActiveThreadId(id);
+    setMobileDrawer(false);
   }, []);
 
   const handleDeleteThread = useCallback((id: string) => {
@@ -122,7 +173,7 @@ export default function HomePage() {
     }
   }, [activeThreadId]);
 
-  // ── メッセージ送信 ────────────────────────
+  // ── メッセージ送信 ────────────────────────────────────────
   const handleSendMessage = useCallback(async (
     question: string,
     settings: ThreadSettings
@@ -160,12 +211,11 @@ export default function HomePage() {
       )
     );
 
-    // ── キャッシュチェック（API呼び出し前） ──────────────
+    // ── キャッシュチェック ──────────────────────────────────
     const cacheKey = buildCacheKey(question, settings, lang);
     const cached   = getCache(cacheKey);
 
     if (cached) {
-      // キャッシュヒット → API ゼロコール
       const cachedMsg: ChatMessage = {
         id:        crypto.randomUUID(),
         role:      "assistant",
@@ -203,7 +253,6 @@ export default function HomePage() {
       });
       const json = (await res.json()) as PredictResponse;
 
-      // 成功レスポンスをキャッシュに保存
       setCache(cacheKey, json);
 
       const assistantMsg: ChatMessage = {
@@ -220,17 +269,16 @@ export default function HomePage() {
         )
       );
     } catch (err) {
-      console.error("[SciaSource] API error:", err);
+      console.error("[scia-nexus] API error:", err);
     } finally {
       setLoadingThreadId(null);
     }
   }, [activeThreadId, isLoading, lang]);
 
-  // ── レンダリング ──────────────────────────
+  // ── レンダリング ──────────────────────────────────────────
   return (
     <div className="flex h-screen overflow-hidden bg-neutral-50 dark:bg-neutral-950 transition-colors duration-300">
 
-      {/* ── サイドバー（モバイル: ドロワー / デスクトップ: インライン） ── */}
       <Sidebar
         isExpanded={sidebarExpanded}
         onToggle={() => setSidebarExpanded((v) => !v)}
@@ -249,10 +297,7 @@ export default function HomePage() {
         t={t}
       />
 
-      {/* ── メインエリア ── */}
       <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
-
-        {/* ヘッダー（モバイルハンバーガー付き） */}
         <MobileHeader
           onHamburger={() => setMobileDrawer(true)}
           isDark={isDark}
@@ -262,7 +307,6 @@ export default function HomePage() {
         {/* Gemini風グラデーション帯 */}
         <div className="h-px w-full flex-none bg-gradient-to-r from-violet-500 via-fuchsia-500 via-cyan-400 to-blue-500 animate-gradient" />
 
-        {/* コンテンツエリア */}
         <main className="flex-1 overflow-y-auto">
           {!currentThread || currentThread.messages.length === 0 ? (
             <LandingScreen t={t} />
@@ -275,7 +319,6 @@ export default function HomePage() {
           )}
         </main>
 
-        {/* チャット入力フッター */}
         <ChatFooter
           onSend={handleSendMessage}
           isLoading={isLoading}
@@ -291,7 +334,7 @@ export default function HomePage() {
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  モバイルヘッダー（ハンバーガー + テーマトグル）
+//  モバイルヘッダー
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function MobileHeader({
   onHamburger, isDark, onToggleTheme,
@@ -303,7 +346,6 @@ function MobileHeader({
   return (
     <header className="sticky top-0 z-20 border-b border-neutral-200/70 dark:border-neutral-800/70 backdrop-blur-md bg-white/80 dark:bg-neutral-950/80 flex-none">
       <div className="w-full px-4 sm:px-6 h-14 flex items-center justify-between">
-        {/* ハンバーガー（モバイルのみ表示） */}
         <button
           onClick={onHamburger}
           className="md:hidden w-9 h-9 rounded-xl flex items-center justify-center text-neutral-500 hover:bg-neutral-100 dark:hover:bg-neutral-800 transition-colors"
@@ -314,12 +356,11 @@ function MobileHeader({
           </svg>
         </button>
 
-        {/* ロゴ（モバイルのみ表示） */}
-        <span className="md:hidden text-sm font-bold text-neutral-900 dark:text-white">
-          Scia<span className="bg-gradient-to-r from-violet-500 to-cyan-500 bg-clip-text text-transparent">Source</span>
+        {/* ロゴ（モバイルのみ） */}
+        <span className="md:hidden text-sm font-black tracking-tight text-neutral-900 dark:text-white">
+          scia-nexus<sup className="text-[9px] font-bold text-violet-500">®</sup>
         </span>
 
-        {/* テーマトグル（Header から button だけ抽出） */}
         <button
           onClick={onToggleTheme}
           className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-200 hover:bg-neutral-100 dark:hover:bg-neutral-800 text-neutral-500 dark:text-neutral-400"
@@ -336,7 +377,7 @@ function MobileHeader({
 }
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  ウェルカム画面
+//  ランディング画面（初期表示）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function LandingScreen({ t }: { t: Translations }) {
   return (
@@ -347,51 +388,84 @@ function LandingScreen({ t }: { t: Translations }) {
       className="flex flex-col items-center justify-center min-h-full px-6 py-12 text-center"
     >
       {/* ロゴ */}
-      <div className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-500 flex items-center justify-center shadow-2xl shadow-violet-500/25 mb-5">
+      <motion.div
+        initial={{ scale: 0.8, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        transition={{ delay: 0.05, duration: 0.35, ease: [0.22, 1, 0.36, 1] }}
+        className="w-16 h-16 sm:w-20 sm:h-20 rounded-3xl bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-500 flex items-center justify-center shadow-2xl shadow-violet-500/25 mb-5"
+      >
         <FlaskConical className="w-8 h-8 sm:w-10 sm:h-10 text-white" />
-      </div>
+      </motion.div>
 
-      <h1 className="text-3xl sm:text-5xl font-extrabold tracking-tight text-neutral-900 dark:text-white mb-3">
-        Scia
-        <span className="bg-gradient-to-r from-violet-500 via-fuchsia-500 to-cyan-500 bg-clip-text text-transparent">
-          Source
-        </span>
-      </h1>
+      {/* タイトル */}
+      <motion.h1
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1, duration: 0.3 }}
+        className="text-3xl sm:text-5xl font-black tracking-tight text-neutral-900 dark:text-white mb-2"
+      >
+        scia-nexus
+        <sup className="text-lg sm:text-2xl font-bold bg-gradient-to-r from-violet-500 to-cyan-500 bg-clip-text text-transparent ml-0.5">®</sup>
+      </motion.h1>
 
       {/* サブタイトル */}
-      <p className="text-base sm:text-lg font-semibold text-neutral-600 dark:text-neutral-300 mb-4">
-        学生が作った学生向けAI補助アプリ
-      </p>
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.15, duration: 0.3 }}
+        className="text-xs sm:text-sm font-semibold text-neutral-400 dark:text-neutral-500 mb-4 tracking-wide"
+      >
+        学生開発の科学的リサーチ・アプローチ判定ツール
+      </motion.p>
 
-      {/* 概要テキスト */}
-      <p className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed mb-10">
-        科学的リサーチ・アプローチ判定ツール。あなたの問いや興味から、最適な研究手順や日常の具体案を、
+      {/* 説明テキスト */}
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.2, duration: 0.3 }}
+        className="text-sm sm:text-base text-neutral-500 dark:text-neutral-400 max-w-xl leading-relaxed mb-10"
+      >
+        あなたの問いや興味から、最適な研究手順と日常の具体案を、
         <span className="text-violet-500 dark:text-violet-400 font-semibold">S〜Cのティア表</span>と
         <span className="text-cyan-500 dark:text-cyan-400 font-semibold">インタラクティブな統計グラフ</span>で
-        視覚的にわかりやすく可視化します。
-      </p>
+        即座に可視化します。
+      </motion.p>
 
       {/* フィーチャーカード */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl w-full">
+      <motion.div
+        initial="hidden"
+        animate="visible"
+        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.07 } } }}
+        className="grid grid-cols-1 sm:grid-cols-3 gap-3 max-w-2xl w-full mb-10"
+      >
         {[
-          { emoji: "🏆", title: "S〜Cティア表",     desc: "実用案を格付け形式で直感的に提示" },
-          { emoji: "📊", title: "全6種の統計グラフ", desc: "棒・折れ線・エリア・円・レーダー・複合グラフ" },
-          { emoji: "💬", title: "連続質問対応",      desc: "スレッド形式で深掘り質問が可能" },
-        ].map(({ emoji, title, desc }) => (
-          <div
+          { icon: <Microscope className="w-5 h-5" />,    title: "S〜Cティア表",    desc: "実用案を格付け形式で直感的に提示", color: "text-violet-500" },
+          { icon: <BarChart2 className="w-5 h-5" />,     title: "全6種の統計グラフ", desc: "棒・折れ線・エリア・円・レーダー・複合", color: "text-cyan-500" },
+          { icon: <MessageSquare className="w-5 h-5" />, title: "連続質問対応",     desc: "スレッド形式で深掘り質問が可能",  color: "text-fuchsia-500" },
+        ].map(({ icon, title, desc, color }) => (
+          <motion.div
             key={title}
+            variants={{
+              hidden:   { opacity: 0, y: 14, scale: 0.96 },
+              visible:  { opacity: 1, y: 0,  scale: 1, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
+            }}
             className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm text-left"
           >
-            <span className="text-2xl">{emoji}</span>
+            <span className={`${color}`}>{icon}</span>
             <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 mt-2">{title}</p>
             <p className="text-xs text-neutral-400 mt-1 leading-relaxed">{desc}</p>
-          </div>
+          </motion.div>
         ))}
-      </div>
+      </motion.div>
 
-      <p className="text-xs text-neutral-400 mt-8 animate-bounce">
+      <motion.p
+        initial={{ opacity: 0 }}
+        animate={{ opacity: 1 }}
+        transition={{ delay: 0.45 }}
+        className="text-xs text-neutral-400 animate-bounce"
+      >
         ↓ 下の入力欄から質問を始めてください
-      </p>
+      </motion.p>
     </motion.div>
   );
 }
