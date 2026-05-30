@@ -30,7 +30,6 @@ interface SidebarProps {
   lang: Lang;
   onLangChange: (l: Lang) => void;
   t: Translations;
-  isDark: boolean;
 }
 
 const LANGS: Lang[] = ["ja", "en", "zh", "ko"];
@@ -72,12 +71,12 @@ export function Sidebar({
         animate={{ width: isExpanded ? 260 : 68 }}
         transition={{ duration: 0.25, ease: [0.4, 0, 0.2, 1] }}
         className={`
-          h-screen flex flex-col
+          h-screen flex flex-col flex-none
           bg-white dark:bg-neutral-900
           border-r border-neutral-200 dark:border-neutral-800
           overflow-hidden
-          md:sticky md:top-0 md:flex-none md:z-30
-          fixed inset-y-0 left-0 z-50 md:relative
+          fixed inset-y-0 left-0 z-50
+          md:relative md:translate-x-0 md:z-30
           transition-transform duration-300
           ${mobileOpen ? "translate-x-0" : "-translate-x-full md:translate-x-0"}
         `}

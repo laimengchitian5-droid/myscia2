@@ -118,7 +118,10 @@ export async function POST(req: NextRequest): Promise<NextResponse<PredictRespon
     );
   }
 
-  const { question, userType, ageGroup, showSources, showChart, provider, lang, researchDepth, plan } = parsed.data;
+  const {
+    question, userType, ageGroup, showSources, showChart,
+    provider, lang, researchDepth, plan,
+  } = parsed.data;
 
   // ---------- 3. APIキー確認 ----------
   const apiKey = resolveGroqApiKey();
@@ -128,7 +131,7 @@ export async function POST(req: NextRequest): Promise<NextResponse<PredictRespon
         "GROQ_API_KEY が設定されていません。.env.local を確認してください。",
         showSources,
         showChart,
-        provider as LLMProvider,
+        provider,
         "llama-3.3-70b-versatile"
       ),
       { status: 200 } // フロントをクラッシュさせないため200を返す
@@ -136,15 +139,14 @@ export async function POST(req: NextRequest): Promise<NextResponse<PredictRespon
   }
 
   // ---------- 4. LLMManager 初期化（ファクトリーパターン） ----------
-  const manager = new LLMManager(provider as LLMProvider);
+  // provider は Zod で列挙型検証済みのため、LLMManager が throw することはない
+  const manager = new LLMManager(provider);
 
   // ---------- 5. システムプロンプト構築（動的・ユーザー属性対応） ----------
   const systemPrompt = buildSystemPrompt(userType, showSources, showChart, lang, ageGroup, researchDepth, plan);
 
-  const userMessage =
-    `以下の疑問・質問に対して、科学的リサーチアプローチの観点から最適な研究分野と研究手法を答えてください。\n\n` +
-    `【質問】${question}\n\n` +
-    `必ずJSONのみを返してください。マークダウンや説明文を含めないでください。`;
+  // userMessage は英語圧縮でトークン節約（システムプロンプトはすでに英語化済み）
+  const userMessage = `Question: ${question}\n\nReturn ONLY valid JSON. No markdown, no explanation.`;
 
   // ---------- 6. LLM呼び出し（Try-Catch + フォールバック） ----------
   try {

@@ -8,6 +8,7 @@ import type { PredictRequest, PredictResponse, UserType, Lang } from "@/app/type
 import type { ChatMessage, ChatThread, ThreadSettings } from "@/app/types/chat";
 import type { Translations } from "@/app/lib/i18n/translations";
 import { TRANSLATIONS } from "@/app/lib/i18n/translations";
+import { buildCacheKey, getCache, setCache } from "@/app/lib/cache";
 import { FlaskConical } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -159,10 +160,32 @@ export default function HomePage() {
       )
     );
 
+    // ── キャッシュチェック（API呼び出し前） ──────────────
+    const cacheKey = buildCacheKey(question, settings, lang);
+    const cached   = getCache(cacheKey);
+
+    if (cached) {
+      // キャッシュヒット → API ゼロコール
+      const cachedMsg: ChatMessage = {
+        id:        crypto.randomUUID(),
+        role:      "assistant",
+        content:   cached.explanation ?? "解析が完了しました。",
+        jsonData:  { ...cached, fromCache: true },
+        timestamp: Date.now(),
+      };
+      setThreads((prev) =>
+        prev.map((t) =>
+          t.id === threadId ? { ...t, messages: [...t.messages, cachedMsg] } : t
+        )
+      );
+      setLoadingThreadId(null);
+      return;
+    }
+
     setLoadingThreadId(threadId);
 
     try {
-      const reqBody: PredictRequest & { researchDepth: string; plan: string } = {
+      const reqBody: PredictRequest = {
         question:      question.trim(),
         userType:      INTERNAL_USER_TYPES[settings.userTypeIdx],
         ageGroup:      settings.ageGroup,
@@ -179,6 +202,9 @@ export default function HomePage() {
         body:    JSON.stringify(reqBody),
       });
       const json = (await res.json()) as PredictResponse;
+
+      // 成功レスポンスをキャッシュに保存
+      setCache(cacheKey, json);
 
       const assistantMsg: ChatMessage = {
         id:        crypto.randomUUID(),
@@ -221,7 +247,6 @@ export default function HomePage() {
         lang={lang}
         onLangChange={setLang}
         t={t}
-        isDark={isDark}
       />
 
       {/* ── メインエリア ── */}

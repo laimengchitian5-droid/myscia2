@@ -333,8 +333,7 @@ function PieChartView({ data }: { data: ChartDataPoint[] }) {
           paddingAngle={3}
           isAnimationActive
           animationDuration={800}
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          label={(props: any) => renderPieLabel(props)}
+          label={(props: PieLabelProps) => renderPieLabel(props)}
           labelLine={false}
         >
           {data.map((_, i) => (

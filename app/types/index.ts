@@ -41,6 +41,8 @@ export interface PredictRequest {
   showChart: boolean;
   provider?: LLMProvider;
   lang?: Lang;
+  researchDepth?: ResearchDepth;
+  plan?: Plan;
 }
 
 // ---------- ソース ----------
@@ -85,6 +87,7 @@ export interface PredictResponse extends LLMJsonResponse {
   latencyMs: number;
   isFallback?: boolean;
   errorMessage?: string;
+  fromCache?: boolean; // LocalStorage キャッシュヒット時に true
 }
 
 // ---------- LLMプロバイダー共通インタフェース ----------
