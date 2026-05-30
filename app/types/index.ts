@@ -29,10 +29,13 @@ export interface PredictRequest {
   plan?: Plan;
 }
 
-// ──── ソース ────────────────────────────────────────────────
+// ──── ソース（権威文献・ハイパーリンク対応） ──────────────
 export interface SourceItem {
-  title: string;
-  url: string;
+  title:   string;
+  url:     string;
+  journal?: string;  // 掲載誌名（例: "Nature", "NEJM"）
+  year?:   string;   // 発行年（例: "2023"）
+  doi?:    string;   // DOI（例: "10.1038/s41586-023-XXXXX"）
 }
 
 // ──── チャートデータ（根拠バッジ付き） ────────────────────

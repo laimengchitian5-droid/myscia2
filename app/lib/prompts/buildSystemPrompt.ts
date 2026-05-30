@@ -86,7 +86,14 @@ export function buildSystemPrompt(
   const ageTag    = ageGroup !== "指定なし" ? ` / Age: ${ageGroup}` : "";
 
   const sourcesRule = showSources
-    ? `"sources": 3-5 real academic papers or reputable sites. Real DOI/URLs if possible.`
+    ? `"sources": MANDATORY — 6 to 10 objects. Each MUST be a REAL, world-class authoritative reference with a WORKING URL. Structure: [{title:"<Author(s) (Year). Full Title. Journal, Volume(Issue), Pages.>", url:"<real verifiable URL — prefer https://doi.org/xxx or https://pubmed.ncbi.nlm.nih.gov/xxx>", journal:"<journal/org name>", year:"<YYYY>", doi:"<DOI string if known>"}].
+PRIORITY ORDER for source selection (use highest-tier first):
+① Meta-analysis or Systematic Review in: Nature, Science, Cell, NEJM, Lancet, JAMA, BMJ, Nature Medicine, Nature Human Behaviour, PNAS
+② RCT or Cohort study in: Cochrane Database, PLOS Medicine, PLOS ONE, Scientific Reports
+③ Authoritative org guidelines: WHO (who.int), NIH (nih.gov), CDC (cdc.gov), UNESCO, OECD, World Bank data, Government white papers
+④ Foundational textbooks cited via Google Scholar: Scholar URL = https://scholar.google.com/scholar?q=<url-encoded-title>
+⑤ Wikipedia for definitional anchors: https://en.wikipedia.org/wiki/<Topic>
+URL RULES: NEVER fabricate DOIs. If unsure of exact DOI, use PubMed search https://pubmed.ncbi.nlm.nih.gov/?term=<encoded-keywords> OR Google Scholar URL. Always include at least 6 sources with https:// links.`
     : `"sources": empty array [].`;
 
   const chartRule = showChart
@@ -152,5 +159,5 @@ ${deepFields}
 CRITICAL FORMAT:
 Return ONLY valid JSON. No markdown. No text outside JSON. Start { end }.
 Mandatory 15-key structure:
-{"success":true,"field":"...","method":"...","metrics":"...","explanation":"...","detailedExplanation":"...","practicalPlans":[{"tier":"S","action":"...","insight":"...","badge":"..."}],"academicPlans":[{"tier":"S","action":"...","insight":"...","badge":"..."}],"sources":[],"chartData":[],"thinkingProcess":{"steps":[{"phase":"...","reasoning":"...","confidence":85}],"summary":"..."},"codeArtifact":null,"selectedSources":[{"domainName":"ncbi.nlm.nih.gov","reliabilityScore":95,"reasonForSelection":"..."}],"zeroEffortCheat":[{"tediousTask":"...","shortcutHack":"...","savedHours":"XX時間削減"}],"financialSimulation":null,"literatureGapMatrix":null,"systemicRisks":null}`;
+{"success":true,"field":"...","method":"...","metrics":"...","explanation":"...","detailedExplanation":"...","practicalPlans":[{"tier":"S","action":"...","insight":"...","badge":"..."}],"academicPlans":[{"tier":"S","action":"...","insight":"...","badge":"..."}],"sources":[{"title":"Author(s) (Year). Title. Journal.","url":"https://doi.org/xxx","journal":"Nature","year":"2023","doi":"10.1038/..."},{"title":"...","url":"https://pubmed.ncbi.nlm.nih.gov/?term=...","journal":"NEJM","year":"2022"},{"title":"...","url":"https://www.who.int/...","journal":"WHO","year":"2024"},{"title":"...","url":"https://en.wikipedia.org/wiki/...","journal":"Wikipedia"},{"title":"...","url":"https://scholar.google.com/scholar?q=...","journal":"Google Scholar"},{"title":"...","url":"https://pubmed.ncbi.nlm.nih.gov/?term=...","journal":"PubMed"}],"chartData":[],"thinkingProcess":{"steps":[{"phase":"...","reasoning":"...","confidence":85}],"summary":"..."},"codeArtifact":null,"selectedSources":[{"domainName":"ncbi.nlm.nih.gov","reliabilityScore":95,"reasonForSelection":"..."}],"zeroEffortCheat":[{"tediousTask":"...","shortcutHack":"...","savedHours":"XX時間削減"}],"financialSimulation":null,"literatureGapMatrix":null,"systemicRisks":null}`;
 }

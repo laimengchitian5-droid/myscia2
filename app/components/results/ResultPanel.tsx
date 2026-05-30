@@ -734,28 +734,9 @@ export function ResultPanel({ data, t }: { data: PredictResponse; t: Translation
           </motion.div>
         )}
 
-        {/* ━━━ 参考文献 ━━━ */}
+        {/* ━━━ 権威文献 ━━━ */}
         {data.sources && data.sources.length > 0 && (
-          <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36, duration: 0.25 }}
-            className="p-4 rounded-2xl bg-white dark:bg-neutral-900 border border-neutral-200 dark:border-neutral-800 shadow-sm"
-          >
-            <p className="text-xs font-semibold text-neutral-500 dark:text-neutral-400 uppercase tracking-wider mb-3">
-              {t?.sourcesLabel ?? "参考文献"}
-            </p>
-            <ul className="space-y-2">
-              {data.sources.map((src, i) => (
-                <li key={i} className="flex items-start gap-2">
-                  <span className="text-xs text-neutral-400 flex-none mt-0.5 font-mono w-4">{i + 1}.</span>
-                  <div className="flex-1 min-w-0">
-                    {src.url
-                      ? <a href={src.url} target="_blank" rel="noopener noreferrer" className="text-sm text-violet-600 dark:text-violet-400 hover:underline flex items-center gap-1 break-all">{src.title}<ExternalLink className="w-3 h-3 flex-none" /></a>
-                      : <span className="text-sm text-neutral-600 dark:text-neutral-300">{src.title}</span>
-                    }
-                  </div>
-                </li>
-              ))}
-            </ul>
-          </motion.div>
+          <SourcesSection sources={data.sources} t={t} />
         )}
       </div>
     </>
@@ -775,6 +756,168 @@ function DeepOnlyPlaceholder({ icon, label }: { icon: React.ReactNode; label: st
         設定パネルで「リサーチの深さ」を <strong>Deep</strong> に変更してください。
       </p>
     </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  権威文献セクション — TOP3 フィーチャーカード + 全件リスト
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// 掲載誌ごとのラベルカラー
+const JOURNAL_BADGE: Record<string, string> = {
+  "Nature":            "bg-emerald-900/40 text-emerald-300 border-emerald-700/40",
+  "Science":           "bg-blue-900/40 text-blue-300 border-blue-700/40",
+  "Cell":              "bg-orange-900/40 text-orange-300 border-orange-700/40",
+  "NEJM":              "bg-red-900/40 text-red-300 border-red-700/40",
+  "Lancet":            "bg-rose-900/40 text-rose-300 border-rose-700/40",
+  "JAMA":              "bg-amber-900/40 text-amber-300 border-amber-700/40",
+  "BMJ":               "bg-sky-900/40 text-sky-300 border-sky-700/40",
+  "PNAS":              "bg-violet-900/40 text-violet-300 border-violet-700/40",
+  "Cochrane":          "bg-teal-900/40 text-teal-300 border-teal-700/40",
+  "WHO":               "bg-cyan-900/40 text-cyan-300 border-cyan-700/40",
+  "NIH":               "bg-indigo-900/40 text-indigo-300 border-indigo-700/40",
+  "CDC":               "bg-lime-900/40 text-lime-300 border-lime-700/40",
+  "Wikipedia":         "bg-neutral-800 text-neutral-300 border-neutral-700",
+  "Google Scholar":    "bg-neutral-800 text-neutral-300 border-neutral-700",
+  "PubMed":            "bg-blue-900/30 text-blue-300 border-blue-700/30",
+};
+
+function getJournalBadgeClass(journal?: string): string {
+  if (!journal) return "bg-neutral-800 text-neutral-400 border-neutral-700";
+  for (const key of Object.keys(JOURNAL_BADGE)) {
+    if (journal.toLowerCase().includes(key.toLowerCase())) return JOURNAL_BADGE[key];
+  }
+  return "bg-neutral-800 text-neutral-300 border-neutral-700";
+}
+
+function SourcesSection({ sources, t }: { sources: PredictResponse["sources"]; t: Translations }) {
+  const [showAll, setShowAll] = useState(false);
+  const TOP   = sources.slice(0, 3);
+  const REST  = sources.slice(3);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.36, duration: 0.28 }}
+      className="space-y-3"
+    >
+      {/* ヘッダー */}
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <BookOpen className="w-4 h-4 text-violet-400" />
+          <p className="text-xs font-black text-neutral-500 dark:text-neutral-400 uppercase tracking-widest">
+            {t?.sourcesLabel ?? "参考文献・引用元"} — {sources.length} 件
+          </p>
+        </div>
+        <span className="text-[9px] px-2 py-0.5 rounded-full bg-violet-900/25 text-violet-400 border border-violet-700/30 font-mono font-bold">
+          PEER-REVIEWED
+        </span>
+      </div>
+
+      {/* TOP 3 フィーチャーカード */}
+      <div className="grid grid-cols-1 gap-3">
+        {TOP.map((src, i) => (
+          <motion.div key={i}
+            initial={{ opacity: 0, x: -12 }} animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: i * 0.08 + 0.05, duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="group"
+          >
+            <a
+              href={src.url || "#"}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex gap-3 p-4 rounded-2xl border border-violet-200/60 dark:border-violet-800/40 bg-gradient-to-r from-violet-50/80 to-white dark:from-violet-900/10 dark:to-neutral-900 hover:border-violet-400/70 dark:hover:border-violet-600/60 hover:shadow-[0_0_20px_rgba(139,92,246,0.12)] transition-all duration-200 cursor-pointer"
+            >
+              {/* 順位バッジ */}
+              <div className="flex-none w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-xs font-black shadow-md mt-0.5">
+                {i + 1}
+              </div>
+              {/* コンテンツ */}
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold text-neutral-800 dark:text-neutral-100 leading-snug group-hover:text-violet-700 dark:group-hover:text-violet-300 transition-colors line-clamp-2">
+                  {src.title}
+                </p>
+                <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                  {src.journal && (
+                    <span className={`text-[9px] px-2 py-0.5 rounded-full border font-mono font-bold ${getJournalBadgeClass(src.journal)}`}>
+                      {src.journal}
+                    </span>
+                  )}
+                  {src.year && (
+                    <span className="text-[9px] px-2 py-0.5 rounded-full border border-neutral-300/50 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 font-mono">
+                      {src.year}
+                    </span>
+                  )}
+                  {src.doi && (
+                    <span className="text-[9px] text-cyan-600 dark:text-cyan-400 font-mono truncate max-w-[140px]">
+                      DOI: {src.doi}
+                    </span>
+                  )}
+                </div>
+              </div>
+              {/* 矢印 */}
+              <div className="flex-none self-center">
+                <ExternalLink className="w-4 h-4 text-neutral-300 dark:text-neutral-600 group-hover:text-violet-400 transition-colors" />
+              </div>
+            </a>
+          </motion.div>
+        ))}
+      </div>
+
+      {/* 残り文献（折りたたみ） */}
+      {REST.length > 0 && (
+        <>
+          <button
+            onClick={() => setShowAll((v) => !v)}
+            className="flex items-center gap-2 text-xs text-neutral-500 dark:text-neutral-400 hover:text-violet-500 dark:hover:text-violet-400 transition-colors font-semibold w-full py-1"
+          >
+            <ChevronDown className={`w-3.5 h-3.5 transition-transform duration-200 ${showAll ? "rotate-180" : ""}`} />
+            {showAll ? "折りたたむ" : `さらに ${REST.length} 件の権威文献を表示`}
+          </button>
+          <AnimatePresence>
+            {showAll && (
+              <motion.ul
+                initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}
+                transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                className="overflow-hidden space-y-1.5 pl-1"
+              >
+                {REST.map((src, i) => (
+                  <motion.li key={i}
+                    initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: i * 0.05, duration: 0.2 }}
+                    className="flex items-start gap-2.5"
+                  >
+                    <span className="text-[10px] text-neutral-400 flex-none mt-0.5 font-mono w-5 text-right">
+                      {i + 4}.
+                    </span>
+                    <div className="flex-1 min-w-0 flex flex-wrap items-baseline gap-2">
+                      {src.url
+                        ? (
+                          <a href={src.url} target="_blank" rel="noopener noreferrer"
+                            className="text-xs text-violet-600 dark:text-violet-400 hover:underline hover:text-violet-500 flex items-center gap-1 break-all transition-colors"
+                          >
+                            {src.title}
+                            <ExternalLink className="w-2.5 h-2.5 flex-none" />
+                          </a>
+                        )
+                        : <span className="text-xs text-neutral-600 dark:text-neutral-300">{src.title}</span>
+                      }
+                      {src.journal && (
+                        <span className={`text-[8px] px-1.5 py-px rounded border font-mono flex-none ${getJournalBadgeClass(src.journal)}`}>
+                          {src.journal}
+                        </span>
+                      )}
+                      {src.year && (
+                        <span className="text-[9px] text-neutral-400 font-mono flex-none">{src.year}</span>
+                      )}
+                    </div>
+                  </motion.li>
+                ))}
+              </motion.ul>
+            )}
+          </AnimatePresence>
+        </>
+      )}
+    </motion.div>
   );
 }
 

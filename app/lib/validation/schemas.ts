@@ -44,14 +44,30 @@ function safeNumber(v: unknown, fallback: number): number {
 const NormalizedSourcesSchema = z.preprocess((val) => {
   if (!Array.isArray(val)) return [];
   return val.map((item) => {
-    if (typeof item === "string") return { title: item, url: "" };
+    if (typeof item === "string") return { title: item, url: "", journal: undefined, year: undefined, doi: undefined };
     if (item && typeof item === "object") {
       const obj = item as Record<string, unknown>;
-      return { title: String(obj.title ?? obj.name ?? "学術ソース"), url: String(obj.url ?? "") };
+      const rawDoi = obj.doi ? String(obj.doi) : undefined;
+      const rawUrl = String(obj.url ?? obj.link ?? obj.href ?? "");
+      // DOI から URL を自動補完
+      const url = rawUrl || (rawDoi ? `https://doi.org/${rawDoi}` : "");
+      return {
+        title:   String(obj.title ?? obj.name ?? obj.citation ?? "学術ソース"),
+        url,
+        journal: obj.journal ? String(obj.journal) : undefined,
+        year:    obj.year    ? String(obj.year)    : undefined,
+        doi:     rawDoi,
+      };
     }
     return { title: "不明なソース", url: "" };
   });
-}, z.array(z.object({ title: z.string().default(""), url: z.string().default("") })).optional().default([]));
+}, z.array(z.object({
+  title:   z.string().default(""),
+  url:     z.string().default(""),
+  journal: z.string().optional(),
+  year:    z.string().optional(),
+  doi:     z.string().optional(),
+})).optional().default([]));
 
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  チャートデータ正規化（basis フィールド）
