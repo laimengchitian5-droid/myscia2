@@ -55,6 +55,35 @@ const GRID_STYLE = {
   strokeDasharray: "3 3",
 };
 
+// ── Julius AI / Perplexity 風エビデンスバッジ付きカスタムツールチップ ─
+function CustomTooltip({
+  active, payload, label,
+}: {
+  active?: boolean;
+  payload?: Array<{ value: number; payload: ChartDataPoint }>;
+  label?: string;
+}) {
+  if (!active || !payload?.length) return null;
+  const point = payload[0]?.payload;
+  return (
+    <div
+      className="rounded-xl px-3 py-2.5 shadow-2xl shadow-black/40 max-w-[220px]"
+      style={{ backgroundColor: "#0f172a", border: "1px solid #334155" }}
+    >
+      <p className="text-xs font-bold text-white mb-0.5 truncate">{label ?? point?.name}</p>
+      <p className="text-lg font-black text-violet-400">{payload[0]?.value}</p>
+      {point?.basis && (
+        <div className="mt-2 pt-1.5 border-t border-neutral-700">
+          <div className="flex items-start gap-1">
+            <span className="text-[9px] font-bold text-cyan-400 uppercase tracking-wide mt-px flex-none">Evidence</span>
+          </div>
+          <p className="text-[10px] text-cyan-300 leading-snug mt-0.5">{point.basis}</p>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── カスタム円グラフ引き出し線ラベル ─────────────────
 const RADIAN = Math.PI / 180;
 
@@ -238,7 +267,7 @@ function BarChartView({ data, height }: { data: ChartDataPoint[]; height: number
         <CartesianGrid {...GRID_STYLE} />
         <XAxis dataKey="name" tick={AXIS_STYLE} />
         <YAxis domain={[0, 100]} tick={AXIS_STYLE} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}`, ""]} />
+        <Tooltip content={<CustomTooltip />} />
         <Bar dataKey="value" radius={[6, 6, 0, 0]} animationDuration={800} isAnimationActive>
           {data.map((_, i) => (
             <Cell key={i} fill={`url(#barGrad${i})`} />
@@ -265,7 +294,7 @@ function LineChartView({ data, height }: { data: ChartDataPoint[]; height: numbe
         <CartesianGrid {...GRID_STYLE} />
         <XAxis dataKey="name" tick={AXIS_STYLE} />
         <YAxis domain={[0, 100]} tick={AXIS_STYLE} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}`, ""]} />
+        <Tooltip content={<CustomTooltip />} />
         <Line
           type="monotone"
           dataKey="value"
@@ -310,7 +339,7 @@ function AreaChartView({ data, height }: { data: ChartDataPoint[]; height: numbe
         <CartesianGrid {...GRID_STYLE} />
         <XAxis dataKey="name" tick={AXIS_STYLE} />
         <YAxis domain={[0, 100]} tick={AXIS_STYLE} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}`, ""]} />
+        <Tooltip content={<CustomTooltip />} />
         <Area
           type="monotone"
           dataKey="value"
@@ -366,10 +395,7 @@ function PieChartView({ data, height }: { data: ChartDataPoint[]; height: number
             />
           ))}
         </Pie>
-        <Tooltip
-          contentStyle={TOOLTIP_STYLE}
-          formatter={(v) => [`${v}`, ""]}
-        />
+        <Tooltip content={<CustomTooltip />} />
       </RechartsPieChart>
     </ResponsiveContainer>
   );
@@ -411,10 +437,7 @@ function RadarChartView({ data, height }: { data: ChartDataPoint[]; height: numb
           isAnimationActive
           animationDuration={800}
         />
-        <Tooltip
-          contentStyle={TOOLTIP_STYLE}
-          formatter={(v) => [`${v}`, ""]}
-        />
+        <Tooltip content={<CustomTooltip />} />
       </RadarChart>
     </ResponsiveContainer>
   );
@@ -442,7 +465,7 @@ function ComposedChartView({ data, height }: { data: ChartDataPoint[]; height: n
         <CartesianGrid {...GRID_STYLE} />
         <XAxis dataKey="name" tick={AXIS_STYLE} />
         <YAxis domain={[0, 100]} tick={AXIS_STYLE} />
-        <Tooltip contentStyle={TOOLTIP_STYLE} formatter={(v) => [`${v}`, ""]} />
+        <Tooltip content={<CustomTooltip />} />
         {/* 棒グラフ（グラデーション・半透明） */}
         <Bar
           dataKey="value"

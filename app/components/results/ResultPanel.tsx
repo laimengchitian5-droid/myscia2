@@ -5,10 +5,12 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ExternalLink, AlertTriangle, Zap, Clock,
   Copy, Download, Check, Database,
-  Maximize2, Minimize2, X, FlaskConical,
+  Maximize2, X, FlaskConical,
+  Brain, ChevronDown, Info,
 } from "lucide-react";
-import { StatChart } from "./StatChart";
-import type { PredictResponse, TierItem, Tier } from "@/app/types";
+import { StatChart }           from "./StatChart";
+import { CodeArtifactPanel, CodeArtifactButton } from "./CodeArtifact";
+import type { PredictResponse, TierItem, Tier, ThinkingProcess, CodeArtifact } from "@/app/types";
 import type { Translations } from "@/app/lib/i18n/translations";
 
 interface ResultPanelProps {
@@ -16,50 +18,49 @@ interface ResultPanelProps {
   t: Translations;
 }
 
-type OuterTab    = "overview" | "detailed" | "actions";
-type InnerTab    = "practical" | "academic";
+type OuterTab         = "overview" | "detailed" | "actions";
+type InnerTab         = "practical" | "academic";
 type FullscreenTarget = "tier" | "chart" | null;
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  ティア設定
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 const TIER_ORDER: Tier[] = ["S", "A", "B", "C"];
 
 const TIER_CONFIG: Record<Tier, {
-  badgeGradient: string;
-  rowBg: string;
-  actionColor: string;
-  borderColor: string;
-  glowColor: string;
-  label: string;
+  badgeGradient: string; rowBg: string; actionColor: string;
+  borderColor: string; glowColor: string; label: string;
 }> = {
-  S: { badgeGradient: "from-red-500 via-orange-500 to-yellow-400", rowBg: "bg-red-500/8 dark:bg-red-500/10",
-       actionColor: "text-orange-600 dark:text-orange-300", borderColor: "border-orange-300/60 dark:border-orange-700/50",
-       glowColor: "shadow-orange-500/20", label: "最優先" },
-  A: { badgeGradient: "from-violet-600 via-purple-500 to-fuchsia-500", rowBg: "bg-violet-500/8 dark:bg-violet-500/10",
-       actionColor: "text-violet-700 dark:text-violet-300", borderColor: "border-violet-300/60 dark:border-violet-700/50",
-       glowColor: "shadow-violet-500/20", label: "重要" },
-  B: { badgeGradient: "from-blue-600 via-cyan-500 to-sky-400", rowBg: "bg-cyan-500/8 dark:bg-cyan-500/10",
-       actionColor: "text-cyan-700 dark:text-cyan-300", borderColor: "border-cyan-300/60 dark:border-cyan-700/50",
-       glowColor: "shadow-cyan-500/20", label: "推奨" },
-  C: { badgeGradient: "from-emerald-600 via-teal-500 to-green-400", rowBg: "bg-emerald-500/8 dark:bg-emerald-500/10",
-       actionColor: "text-emerald-700 dark:text-emerald-300", borderColor: "border-emerald-300/60 dark:border-emerald-700/50",
-       glowColor: "shadow-emerald-500/20", label: "補足" },
+  S: { badgeGradient: "from-red-500 via-orange-500 to-yellow-400",
+       rowBg: "bg-red-500/8 dark:bg-red-500/10",    actionColor: "text-orange-600 dark:text-orange-300",
+       borderColor: "border-orange-300/60 dark:border-orange-700/50", glowColor: "shadow-orange-500/20", label: "最優先" },
+  A: { badgeGradient: "from-violet-600 via-purple-500 to-fuchsia-500",
+       rowBg: "bg-violet-500/8 dark:bg-violet-500/10", actionColor: "text-violet-700 dark:text-violet-300",
+       borderColor: "border-violet-300/60 dark:border-violet-700/50", glowColor: "shadow-violet-500/20", label: "重要" },
+  B: { badgeGradient: "from-blue-600 via-cyan-500 to-sky-400",
+       rowBg: "bg-cyan-500/8 dark:bg-cyan-500/10",   actionColor: "text-cyan-700 dark:text-cyan-300",
+       borderColor: "border-cyan-300/60 dark:border-cyan-700/50",   glowColor: "shadow-cyan-500/20",  label: "推奨" },
+  C: { badgeGradient: "from-emerald-600 via-teal-500 to-green-400",
+       rowBg: "bg-emerald-500/8 dark:bg-emerald-500/10", actionColor: "text-emerald-700 dark:text-emerald-300",
+       borderColor: "border-emerald-300/60 dark:border-emerald-800/50", glowColor: "shadow-emerald-500/20", label: "補足" },
 };
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  Markdown レポートフォーマッタ
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function buildMarkdown(data: PredictResponse): string {
   const tierMd = (plans: TierItem[], label: string) => {
     if (!plans?.length) return "";
-    const rows = plans.map(({ tier, action, insight }) =>
-      `| **${tier}** | ${action} | ${insight || "—"} |`
+    const rows = plans.map(({ tier, action, insight, badge }) =>
+      `| **${tier}** | ${action} | ${insight || "—"} | ${badge ? `*${badge}*` : "—"} |`
     ).join("\n");
-    return `### ${label}\n\n| ランク | アクション | ＋α 解説 |\n|--------|-----------|----------|\n${rows}\n`;
+    return `### ${label}\n\n| ランク | アクション | 解説 | 根拠 |\n|--------|-----------|------|------|\n${rows}\n`;
   };
   const sourcesMd = data.sources?.length
     ? `### 参考文献\n\n${data.sources.map((s, i) => `${i + 1}. [${s.title}](${s.url || "#"})`).join("\n")}\n`
+    : "";
+  const codeMd = data.codeArtifact
+    ? `### コードアーティファクト: ${data.codeArtifact.title}\n\n\`\`\`${data.codeArtifact.language}\n${data.codeArtifact.code}\n\`\`\`\n\n${data.codeArtifact.description ?? ""}\n`
     : "";
   return [
     `# scia-nexus® 判定レポート\n`,
@@ -71,17 +72,18 @@ function buildMarkdown(data: PredictResponse): string {
     tierMd(data.practicalPlans ?? [], "💡 日常の具体案（実用プラン）"),
     tierMd(data.academicPlans  ?? [], "🔬 研究・調査の手順（学術プラン）"),
     sourcesMd,
+    codeMd,
     `---\n*Generated by scia-nexus® (${data.provider} / ${data.model}) · © 2026 scia-nexus® Developer Team*`,
   ].filter(Boolean).join("\n");
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  エクスポートフック
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function useExport(panelRef: React.RefObject<HTMLDivElement | null>) {
-  const [copyDone,     setCopyDone]     = useState(false);
-  const [downloadDone, setDownloadDone] = useState(false);
-  const [exporting,    setExporting]    = useState(false);
+  const [copyDone, setCopyDone]     = useState(false);
+  const [dlDone,   setDlDone]       = useState(false);
+  const [exporting, setExporting]   = useState(false);
 
   const copyReport = useCallback(async (data: PredictResponse) => {
     try {
@@ -97,30 +99,108 @@ function useExport(panelRef: React.RefObject<HTMLDivElement | null>) {
     try {
       const html2canvas = (await import("html2canvas")).default;
       const canvas = await html2canvas(panelRef.current, {
-        backgroundColor: "#ffffff",
-        scale: 2,
-        useCORS: true,
-        logging: false,
+        backgroundColor: "#ffffff", scale: 2, useCORS: true, logging: false,
       });
       const link = document.createElement("a");
       link.download = `scia-nexus_${Date.now()}.png`;
       link.href = canvas.toDataURL("image/png");
       link.click();
-      setDownloadDone(true);
-      setTimeout(() => setDownloadDone(false), 2400);
-    } catch (e) {
-      console.error("[scia-nexus] PNG export failed:", e);
-    } finally {
-      setExporting(false);
-    }
+      setDlDone(true);
+      setTimeout(() => setDlDone(false), 2400);
+    } catch (e) { console.error("[scia-nexus] PNG export failed:", e);
+    } finally { setExporting(false); }
   }, [panelRef, exporting]);
 
-  return { copyReport, downloadPng, copyDone, downloadDone, exporting };
+  return { copyReport, downloadPng, copyDone, dlDone, exporting };
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  【1】Gemini Thinking 風アコーディオン
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+function ThinkingAccordion({ process }: { process: ThinkingProcess }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className="rounded-2xl border border-violet-200/70 dark:border-violet-800/40 overflow-hidden bg-white dark:bg-neutral-900 shadow-sm">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-violet-50/70 dark:hover:bg-violet-900/15 transition-colors duration-150"
+      >
+        <motion.div
+          animate={{ rotate: open ? 360 : 0 }}
+          transition={{ duration: 0.5, ease: "easeInOut" }}
+        >
+          <Brain className="w-4 h-4 text-violet-500 flex-none" />
+        </motion.div>
+        <span className="text-xs font-bold text-violet-700 dark:text-violet-300 flex-1">
+          Thinking Process — AIの思考プロセスを確認する
+        </span>
+        <motion.div animate={{ rotate: open ? 180 : 0 }} transition={{ duration: 0.22 }}>
+          <ChevronDown className="w-4 h-4 text-violet-400 flex-none" />
+        </motion.div>
+      </button>
+
+      <AnimatePresence initial={false}>
+        {open && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+            <div className="px-4 pb-4 pt-2 bg-violet-50/40 dark:bg-violet-900/8 space-y-3 border-t border-violet-100 dark:border-violet-800/40">
+              {process.steps.map((step, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ opacity: 0, x: -14 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  transition={{ delay: i * 0.07, duration: 0.24, ease: [0.22, 1, 0.36, 1] }}
+                  className="flex gap-3"
+                >
+                  <div className="flex-none w-6 h-6 rounded-full bg-gradient-to-br from-violet-500 to-fuchsia-500 flex items-center justify-center text-white text-[10px] font-black shadow-sm">
+                    {i + 1}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-xs font-bold text-violet-700 dark:text-violet-300">{step.phase}</p>
+                      <div className="flex items-center gap-1">
+                        <span className="text-[10px] text-neutral-400">確信度</span>
+                        <span className="text-[10px] font-black text-violet-500">{step.confidence}%</span>
+                      </div>
+                    </div>
+                    <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                      {step.reasoning}
+                    </p>
+                    {/* 確信度バー */}
+                    <div className="mt-1.5 h-1 bg-neutral-200 dark:bg-neutral-700 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${step.confidence}%` }}
+                        transition={{ delay: i * 0.07 + 0.18, duration: 0.55, ease: "easeOut" }}
+                        className="h-full bg-gradient-to-r from-violet-500 to-cyan-400 rounded-full"
+                      />
+                    </div>
+                  </div>
+                </motion.div>
+              ))}
+              {process.summary && (
+                <p className="text-xs text-neutral-500 dark:text-neutral-400 italic border-t border-violet-100 dark:border-violet-800/40 pt-3">
+                  <span className="text-violet-400 font-semibold not-italic">∑ </span>
+                  {process.summary}
+                </p>
+              )}
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  フルスクリーンオーバーレイ
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function FullscreenOverlay({
   target, innerTab, data, t, onClose,
 }: {
@@ -130,21 +210,15 @@ function FullscreenOverlay({
   t: Translations;
   onClose: () => void;
 }) {
-  // Escape キーで閉じる
   useEffect(() => {
-    const handler = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
-    document.addEventListener("keydown", handler);
-    return () => document.removeEventListener("keydown", handler);
+    const h = (e: KeyboardEvent) => { if (e.key === "Escape") onClose(); };
+    document.addEventListener("keydown", h);
+    return () => document.removeEventListener("keydown", h);
   }, [onClose]);
 
   const plans = target === "tier"
     ? (innerTab === "practical" ? data.practicalPlans : data.academicPlans) ?? []
     : [];
-
-  const titleMap: Record<NonNullable<FullscreenTarget>, string> = {
-    tier:  innerTab === "practical" ? "💡 日常の具体案（実用プラン）" : "🔬 研究・調査の手順（学術プラン）",
-    chart: "📊 統計グラフ",
-  };
 
   return (
     <motion.div
@@ -154,37 +228,35 @@ function FullscreenOverlay({
       transition={{ duration: 0.18 }}
       className="fixed inset-0 z-[200] bg-neutral-950 flex flex-col"
     >
-      {/* ヘッダー */}
       <div className="flex items-center justify-between px-5 md:px-8 py-4 border-b border-neutral-800 flex-none">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center shadow-lg shadow-violet-500/30">
+          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-violet-500 to-cyan-500 flex items-center justify-center">
             <FlaskConical className="w-4 h-4 text-white" />
           </div>
           <div>
             <p className="text-white font-black text-sm tracking-tight">
               scia-nexus<sup className="text-[8px] text-violet-400 ml-px">®</sup>
             </p>
-            <p className="text-neutral-400 text-xs">{titleMap[target]}</p>
+            <p className="text-neutral-400 text-xs">
+              {target === "chart"
+                ? "📊 統計グラフ — プレゼンモード"
+                : innerTab === "practical" ? "💡 日常の具体案" : "🔬 研究・調査の手順"}
+            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="hidden sm:block text-[10px] text-neutral-500">
-            Esc で閉じる
-          </span>
-          <button
-            onClick={onClose}
-            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all duration-150"
+          <span className="hidden sm:block text-[10px] text-neutral-500">Esc で閉じる</span>
+          <button onClick={onClose}
+            className="w-9 h-9 flex items-center justify-center rounded-xl hover:bg-neutral-800 text-neutral-400 hover:text-white transition-all"
           >
-            <X className="w-4.5 h-4.5" />
+            <X className="w-4 h-4" />
           </button>
         </div>
       </div>
-
-      {/* コンテンツ */}
       <motion.div
         initial={{ opacity: 0, y: 12 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.08, duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+        transition={{ delay: 0.08, duration: 0.28 }}
         className="flex-1 overflow-y-auto p-5 md:p-10"
       >
         {target === "chart" && data.chartData && data.chartData.length > 0 && (
@@ -198,8 +270,6 @@ function FullscreenOverlay({
           </div>
         )}
       </motion.div>
-
-      {/* フッター著作権 */}
       <div className="flex-none border-t border-neutral-800 py-2.5 text-center">
         <p className="text-[10px] text-neutral-600">
           © 2026 scia-nexus® Developer Team. All Rights Reserved.
@@ -209,19 +279,22 @@ function FullscreenOverlay({
   );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  メインコンポーネント
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export function ResultPanel({ data, t }: ResultPanelProps) {
-  const [outerTab,   setOuterTab]   = useState<OuterTab>("overview");
-  const [innerTab,   setInnerTab]   = useState<InnerTab>("practical");
-  const [fullscreen, setFullscreen] = useState<FullscreenTarget>(null);
+  const [outerTab,     setOuterTab]     = useState<OuterTab>("overview");
+  const [innerTab,     setInnerTab]     = useState<InnerTab>("practical");
+  const [fullscreen,   setFullscreen]   = useState<FullscreenTarget>(null);
+  const [artifactOpen, setArtifactOpen] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
-  const { copyReport, downloadPng, copyDone, downloadDone, exporting } = useExport(panelRef);
+  const { copyReport, downloadPng, copyDone, dlDone, exporting } = useExport(panelRef);
 
   const hasPractical = (data.practicalPlans?.length ?? 0) > 0;
   const hasAcademic  = (data.academicPlans?.length  ?? 0) > 0;
   const hasActions   = hasPractical || hasAcademic;
+  const hasArtifact  = !!data.codeArtifact?.code;
+  const hasThinking  = !!data.thinkingProcess?.steps?.length;
 
   const outerTabs: { key: OuterTab; label: string; enabled: boolean }[] = [
     { key: "overview",  label: t?.overviewLabel    ?? "概要",    enabled: true },
@@ -231,18 +304,23 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
 
   return (
     <>
-      {/* フルスクリーンオーバーレイ（Portalと同等のz-index） */}
+      {/* フルスクリーン */}
       <AnimatePresence>
         {fullscreen && (
           <FullscreenOverlay
-            target={fullscreen}
-            innerTab={innerTab}
-            data={data}
-            t={t}
-            onClose={() => setFullscreen(null)}
+            target={fullscreen} innerTab={innerTab}
+            data={data} t={t} onClose={() => setFullscreen(null)}
           />
         )}
       </AnimatePresence>
+
+      {/* Artifact パネル */}
+      {artifactOpen && data.codeArtifact && (
+        <CodeArtifactPanel
+          artifact={data.codeArtifact}
+          onClose={() => setArtifactOpen(false)}
+        />
+      )}
 
       <div ref={panelRef} className="space-y-4">
 
@@ -257,6 +335,17 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
               <p className="text-xs font-semibold text-amber-700 dark:text-amber-400">{t?.demoWarningTitle}</p>
               <p className="text-xs text-amber-600 dark:text-amber-500 mt-0.5">{data.errorMessage}</p>
             </div>
+          </motion.div>
+        )}
+
+        {/* ━━━ 【1】Gemini Thinking アコーディオン ━━━ */}
+        {hasThinking && data.thinkingProcess && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <ThinkingAccordion process={data.thinkingProcess} />
           </motion.div>
         )}
 
@@ -280,60 +369,56 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
           )}
 
           <div className="ml-auto flex items-center gap-1.5">
-            {/* ── レポート用コピー（Notion風） ── */}
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              onClick={() => copyReport(data)}
-              title="Word・Notion・Google Docs にそのまま貼り付けられるMarkdown形式でコピー"
+            <motion.button whileTap={{ scale: 0.92 }} onClick={() => copyReport(data)}
+              title="Notion / Word に貼り付けられるMarkdown形式でコピー"
               className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150 ${
                 copyDone
                   ? "bg-emerald-500 border-emerald-500 text-white"
                   : "border-violet-200 dark:border-violet-800/60 text-violet-600 dark:text-violet-400 hover:bg-violet-50 dark:hover:bg-violet-900/20 bg-white dark:bg-neutral-900"
               }`}
             >
-              {copyDone
-                ? <><Check className="w-3 h-3" />コピー完了！</>
-                : <><Copy className="w-3 h-3" />レポート用にコピー</>
-              }
+              {copyDone ? <><Check className="w-3 h-3" />コピー完了！</> : <><Copy className="w-3 h-3" />レポート用にコピー</>}
             </motion.button>
 
-            {/* ── PNG 保存 ── */}
-            <motion.button
-              whileTap={{ scale: 0.92 }}
-              onClick={downloadPng}
-              disabled={exporting}
-              title="結果全体をPNG画像として保存（発表スライドへ一発貼り付け）"
+            <motion.button whileTap={{ scale: 0.92 }} onClick={downloadPng} disabled={exporting}
               className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all duration-150 ${
-                downloadDone
-                  ? "bg-emerald-500 border-emerald-500 text-white"
-                  : exporting
-                    ? "border-neutral-200 dark:border-neutral-700 text-neutral-300 dark:text-neutral-600 bg-white dark:bg-neutral-900 cursor-wait"
-                    : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-cyan-400 hover:text-cyan-500 bg-white dark:bg-neutral-900"
+                dlDone ? "bg-emerald-500 border-emerald-500 text-white"
+                : exporting ? "border-neutral-200 dark:border-neutral-700 text-neutral-300 dark:text-neutral-600 bg-white dark:bg-neutral-900 cursor-wait"
+                : "border-neutral-200 dark:border-neutral-700 text-neutral-500 dark:text-neutral-400 hover:border-cyan-400 hover:text-cyan-500 bg-white dark:bg-neutral-900"
               }`}
             >
-              {downloadDone ? <><Check className="w-3 h-3" />保存完了</> : exporting ? <><Download className="w-3 h-3 animate-bounce" />変換中</> : <><Download className="w-3 h-3" />PNG</>}
+              {dlDone ? <><Check className="w-3 h-3" />保存完了</> : exporting ? <><Download className="w-3 h-3 animate-bounce" />変換中</> : <><Download className="w-3 h-3" />PNG</>}
             </motion.button>
           </div>
         </div>
 
+        {/* ━━━ 【2】Claude Artifacts — コードプレビューボタン ━━━ */}
+        {hasArtifact && data.codeArtifact && (
+          <motion.div
+            initial={{ opacity: 0, y: 8, scale: 0.97 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ delay: 0.1, duration: 0.28, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <CodeArtifactButton
+              artifact={data.codeArtifact}
+              onClick={() => setArtifactOpen(true)}
+            />
+          </motion.div>
+        )}
+
         {/* ━━━ 研究分野 / 手法 / 指標カード ━━━ */}
         <motion.div
           className="grid grid-cols-1 gap-3"
-          initial="hidden"
-          animate="visible"
+          initial="hidden" animate="visible"
           variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.07 } } }}
         >
           {[
-            { emoji: "🎯", label: t?.fieldLabel   ?? "研究分野",  content: data.field.replace(/^🎯\s*/,  ""), gradient: "from-violet-500/10 to-fuchsia-500/10", border: "border-violet-200 dark:border-violet-800/50",   textColor: "text-violet-700 dark:text-violet-300"   },
-            { emoji: "🔬", label: t?.methodLabel  ?? "研究手法",  content: data.method.replace(/^🔬\s*/, ""), gradient: "from-cyan-500/10 to-blue-500/10",       border: "border-cyan-200 dark:border-cyan-800/50",     textColor: "text-cyan-700 dark:text-cyan-300"       },
-            { emoji: "📊", label: t?.metricsLabel ?? "統計指標",  content: data.metrics.replace(/^📊\s*/,""), gradient: "from-emerald-500/10 to-teal-500/10",   border: "border-emerald-200 dark:border-emerald-800/50",textColor: "text-emerald-700 dark:text-emerald-300" },
+            { emoji: "🎯", label: t?.fieldLabel   ?? "研究分野",  content: data.field.replace(/^🎯\s*/,  ""), gradient: "from-violet-500/10 to-fuchsia-500/10", border: "border-violet-200 dark:border-violet-800/50",    textColor: "text-violet-700 dark:text-violet-300"    },
+            { emoji: "🔬", label: t?.methodLabel  ?? "研究手法",  content: data.method.replace(/^🔬\s*/, ""), gradient: "from-cyan-500/10 to-blue-500/10",       border: "border-cyan-200 dark:border-cyan-800/50",      textColor: "text-cyan-700 dark:text-cyan-300"        },
+            { emoji: "📊", label: t?.metricsLabel ?? "統計指標",  content: data.metrics.replace(/^📊\s*/,""), gradient: "from-emerald-500/10 to-teal-500/10",   border: "border-emerald-200 dark:border-emerald-800/50",textColor: "text-emerald-700 dark:text-emerald-300"  },
           ].map(({ emoji, label, content, gradient, border, textColor }) => (
-            <motion.div
-              key={label}
-              variants={{
-                hidden:   { opacity: 0, y: 12, scale: 0.97 },
-                visible:  { opacity: 1, y: 0,  scale: 1, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } },
-              }}
+            <motion.div key={label}
+              variants={{ hidden: { opacity: 0, y: 12, scale: 0.97 }, visible: { opacity: 1, y: 0, scale: 1, transition: { duration: 0.28, ease: [0.22, 1, 0.36, 1] } } }}
             >
               <ResultCard emoji={emoji} label={label} content={content} gradient={gradient} border={border} textColor={textColor} />
             </motion.div>
@@ -395,7 +480,6 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
                   initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0, y: -6 }}
                   transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
                 >
-                  {/* 内タブ + 拡大ボタン */}
                   <div className="flex items-center gap-2 mb-4">
                     <div className="flex flex-1 gap-1 p-1 rounded-xl bg-neutral-100 dark:bg-neutral-800/60">
                       <InnerTabButton active={innerTab === "practical"} label={t?.practicalPlansLabel ?? "💡 日常の具体案"}
@@ -403,16 +487,14 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
                       <InnerTabButton active={innerTab === "academic"} label={t?.academicPlansLabel ?? "🔬 研究・調査の手順"}
                         onClick={() => setInnerTab("academic")} disabled={!hasAcademic} color="violet" />
                     </div>
-                    {/* プレゼンモードボタン */}
                     <button
                       onClick={() => setFullscreen("tier")}
-                      title="フルスクリーンで表示（発表・スクリーンショット用）"
-                      className="flex-none w-8 h-8 flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-violet-500 hover:border-violet-400 bg-white dark:bg-neutral-900 transition-all duration-150"
+                      title="フルスクリーンで表示"
+                      className="flex-none w-8 h-8 flex items-center justify-center rounded-lg border border-neutral-200 dark:border-neutral-700 text-neutral-400 hover:text-violet-500 hover:border-violet-400 bg-white dark:bg-neutral-900 transition-all"
                     >
                       <Maximize2 className="w-3.5 h-3.5" />
                     </button>
                   </div>
-
                   <AnimatePresence mode="wait">
                     {innerTab === "practical" && (
                       <motion.div key="practical"
@@ -433,7 +515,6 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
                   </AnimatePresence>
                 </motion.div>
               )}
-
             </AnimatePresence>
           </div>
         </motion.div>
@@ -446,15 +527,13 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
             transition={{ delay: 0.3, duration: 0.3, ease: [0.22, 1, 0.36, 1] }}
             className="rounded-2xl bg-neutral-950 dark:bg-neutral-900 border border-neutral-800 shadow-sm overflow-hidden"
           >
-            {/* グラフヘッダー + 拡大ボタン */}
             <div className="flex items-center justify-between px-4 pt-4 pb-2">
               <p className="text-[10px] font-semibold text-neutral-400 uppercase tracking-widest">
                 {t?.chartTitle ?? "統計グラフ"}
               </p>
-              <button
-                onClick={() => setFullscreen("chart")}
-                title="グラフをフルスクリーンで表示（発表・画面共有用）"
-                className="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:text-violet-400 hover:bg-neutral-800 transition-all duration-150"
+              <button onClick={() => setFullscreen("chart")}
+                title="グラフをフルスクリーンで表示"
+                className="w-7 h-7 flex items-center justify-center rounded-lg text-neutral-500 hover:text-violet-400 hover:bg-neutral-800 transition-all"
               >
                 <Maximize2 className="w-3.5 h-3.5" />
               </button>
@@ -499,10 +578,12 @@ export function ResultPanel({ data, t }: ResultPanelProps) {
   );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-//  TierTable — スタガーアニメーション付きティア表
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  【3】TierTable — Julius AI 風インサイトバッジ
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 export function TierTable({ plans }: { plans: TierItem[] }) {
+  const [tooltip, setTooltip] = useState<{ text: string; x: number; y: number } | null>(null);
+
   if (!plans || plans.length === 0) {
     return <p className="text-sm text-neutral-400 italic">データがありません</p>;
   }
@@ -513,76 +594,125 @@ export function TierTable({ plans }: { plans: TierItem[] }) {
   }, { S: [], A: [], B: [], C: [] });
 
   return (
-    <motion.div
-      className="space-y-2"
-      initial="hidden"
-      animate="visible"
-      variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.09 } } }}
-    >
-      {/* ヘッダー（デスクトップのみ） */}
-      <div className="hidden md:flex items-center gap-2 mb-1 px-1">
-        <span className="w-12 flex-none" />
-        <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest" style={{ width: "38%" }}>
-          アクション
-        </span>
-        <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest flex-1">
-          ＋α 知識 / 解説
-        </span>
-      </div>
-
-      {TIER_ORDER.map((tier) => {
-        const items = grouped[tier];
-        if (!items || items.length === 0) return null;
-        const cfg = TIER_CONFIG[tier];
-
-        return (
+    <div className="relative">
+      {/* インサイトツールチップ */}
+      <AnimatePresence>
+        {tooltip && (
           <motion.div
-            key={tier}
-            variants={{
-              hidden:  { opacity: 0, x: -18, scale: 0.97 },
-              visible: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] } },
-            }}
-            className={`flex rounded-xl border ${cfg.borderColor} overflow-hidden shadow-sm ${cfg.glowColor}`}
+            key="insight-tooltip"
+            initial={{ opacity: 0, scale: 0.9, y: 4 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            exit={{ opacity: 0, scale: 0.9, y: 4 }}
+            transition={{ duration: 0.15 }}
+            className="fixed z-[80] pointer-events-none max-w-[220px]"
+            style={{ left: tooltip.x, top: tooltip.y }}
           >
-            {/* ティアバッジ */}
-            <div className={`flex-none w-12 flex flex-col items-center justify-center bg-gradient-to-b ${cfg.badgeGradient} py-3 gap-1`}>
-              <span className="text-white font-black text-2xl leading-none drop-shadow-md">{tier}</span>
-              <span className="text-white/80 text-[8px] font-bold tracking-wider leading-none">{cfg.label}</span>
-            </div>
-
-            {/* アイテム列 */}
-            <div className="flex-1 divide-y divide-neutral-200/50 dark:divide-neutral-700/40">
-              {items.map((item, i) => (
-                <motion.div
-                  key={i}
-                  initial={{ opacity: 0 }}
-                  animate={{ opacity: 1 }}
-                  transition={{ delay: 0.06 + i * 0.05, duration: 0.2 }}
-                  className="flex flex-col md:flex-row min-h-[56px]"
-                >
-                  <div className={`w-full md:w-auto md:flex-none px-3 py-2.5 md:py-3 ${cfg.rowBg}`}>
-                    <div className="md:hidden text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">アクション</div>
-                    <p className={`text-xs font-bold ${cfg.actionColor} leading-snug md:w-[220px] lg:w-auto`}>{item.action}</p>
-                  </div>
-                  <div className="flex-1 px-3 py-2.5 md:py-3 bg-white/60 dark:bg-neutral-800/40 border-t md:border-t-0 md:border-l border-neutral-200/50 dark:border-neutral-700/40">
-                    <div className="md:hidden text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">＋α 解説</div>
-                    <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
-                      {item.insight || <span className="italic text-neutral-400">—</span>}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
+            <div className="bg-neutral-900 border border-cyan-500/40 rounded-xl px-3 py-2 shadow-xl shadow-black/40">
+              <div className="flex items-center gap-1.5 mb-1">
+                <Info className="w-3 h-3 text-cyan-400 flex-none" />
+                <span className="text-[9px] font-bold text-cyan-400 uppercase tracking-wide">Evidence</span>
+              </div>
+              <p className="text-xs text-neutral-200 leading-snug">{tooltip.text}</p>
             </div>
           </motion.div>
-        );
-      })}
-    </motion.div>
+        )}
+      </AnimatePresence>
+
+      <motion.div
+        className="space-y-2"
+        initial="hidden" animate="visible"
+        variants={{ hidden: {}, visible: { transition: { staggerChildren: 0.09 } } }}
+      >
+        {/* ヘッダー */}
+        <div className="hidden md:flex items-center gap-2 mb-1 px-1">
+          <span className="w-12 flex-none" />
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest" style={{ width: "38%" }}>
+            アクション
+          </span>
+          <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest flex-1">
+            ＋α 知識 / 解説
+          </span>
+        </div>
+
+        {TIER_ORDER.map((tier) => {
+          const items = grouped[tier];
+          if (!items || items.length === 0) return null;
+          const cfg = TIER_CONFIG[tier];
+
+          return (
+            <motion.div
+              key={tier}
+              variants={{
+                hidden:  { opacity: 0, x: -18, scale: 0.97 },
+                visible: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.32, ease: [0.22, 1, 0.36, 1] } },
+              }}
+              className={`flex rounded-xl border ${cfg.borderColor} overflow-hidden shadow-sm ${cfg.glowColor}`}
+            >
+              {/* ティアバッジ */}
+              <div className={`flex-none w-12 flex flex-col items-center justify-center bg-gradient-to-b ${cfg.badgeGradient} py-3 gap-1`}>
+                <span className="text-white font-black text-2xl leading-none drop-shadow-md">{tier}</span>
+                <span className="text-white/80 text-[8px] font-bold tracking-wider">{cfg.label}</span>
+              </div>
+
+              {/* アイテム列 */}
+              <div className="flex-1 divide-y divide-neutral-200/50 dark:divide-neutral-700/40">
+                {items.map((item, i) => (
+                  <motion.div
+                    key={i}
+                    initial={{ opacity: 0 }}
+                    animate={{ opacity: 1 }}
+                    transition={{ delay: 0.06 + i * 0.05, duration: 0.2 }}
+                    className="flex flex-col md:flex-row min-h-[56px]"
+                  >
+                    {/* アクション列 */}
+                    <div className={`w-full md:w-auto md:flex-none px-3 py-2.5 md:py-3 ${cfg.rowBg}`}>
+                      <div className="md:hidden text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">アクション</div>
+                      <div className="flex items-start gap-1.5">
+                        <p className={`text-xs font-bold ${cfg.actionColor} leading-snug md:w-[200px] lg:w-auto flex-1`}>
+                          {item.action}
+                        </p>
+                        {/* ━━ 【Julius AI風】インサイトバッジボタン ━━ */}
+                        {item.badge && (
+                          <button
+                            onMouseEnter={(e) => {
+                              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                              setTooltip({ text: item.badge!, x: rect.left, y: rect.bottom + 6 });
+                            }}
+                            onMouseLeave={() => setTooltip(null)}
+                            onTouchStart={(e) => {
+                              const rect = (e.currentTarget as HTMLButtonElement).getBoundingClientRect();
+                              setTooltip(tooltip?.text === item.badge ? null : { text: item.badge!, x: rect.left, y: rect.bottom + 6 });
+                            }}
+                            className="flex-none w-4 h-4 mt-0.5 rounded-full bg-cyan-500/20 border border-cyan-400/40 flex items-center justify-center hover:bg-cyan-500/30 transition-colors"
+                            aria-label="科学的根拠を表示"
+                          >
+                            <Info className="w-2.5 h-2.5 text-cyan-400" />
+                          </button>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* インサイト列 */}
+                    <div className="flex-1 px-3 py-2.5 md:py-3 bg-white/60 dark:bg-neutral-800/40 border-t md:border-t-0 md:border-l border-neutral-200/50 dark:border-neutral-700/40">
+                      <div className="md:hidden text-[9px] font-bold text-neutral-400 uppercase tracking-widest mb-1">＋α 解説</div>
+                      <p className="text-xs text-neutral-600 dark:text-neutral-300 leading-relaxed">
+                        {item.insight || <span className="italic text-neutral-400">—</span>}
+                      </p>
+                    </div>
+                  </motion.div>
+                ))}
+              </div>
+            </motion.div>
+          );
+        })}
+      </motion.div>
+    </div>
   );
 }
 
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //  サブコンポーネント
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 function InnerTabButton({ active, label, onClick, disabled, color }: {
   active: boolean; label: string; onClick: () => void; disabled: boolean; color: "amber" | "violet";
 }) {
