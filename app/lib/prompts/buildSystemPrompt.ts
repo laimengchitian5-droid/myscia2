@@ -1,13 +1,12 @@
 import type { UserType, AgeGroup, Lang, ResearchDepth, Plan } from "@/app/types";
 import { LANG_NAME_FOR_PROMPT } from "@/app/lib/i18n/translations";
 
-// ── レベル設定 ──────────────────────────────────────────────
 type LevelConfig = {
   levelLabel: string;
   termStyle: string;
   statsStyle: string;
   academicFocus: string;
-  codeHint: string;         // コードアーティファクト用のヒント
+  codeHint: string;
   businessFocus?: string;
 };
 
@@ -15,9 +14,9 @@ const LEVEL_CONFIGS: Record<UserType, LevelConfig> = {
   "中学生": {
     levelLabel:   "Middle school student (age 13-15)",
     termStyle:    "Plain, everyday language. Use analogies. Keep sentences short.",
-    statsStyle:   "Only p-value, mean, percentage. Explain what they mean, not formulas.",
+    statsStyle:   "Only p-value, mean, percentage.",
     academicFocus:"school experiments, free-research projects, simple surveys",
-    codeHint:     "Simple Python (no external libs). Prefer matplotlib.pyplot for visualization.",
+    codeHint:     "Simple Python (no external libs). Prefer matplotlib.pyplot.",
   },
   "高校生": {
     levelLabel:   "High school student (age 16-18)",
@@ -35,15 +34,15 @@ const LEVEL_CONFIGS: Record<UserType, LevelConfig> = {
   },
   "大学院生": {
     levelLabel:   "Graduate student / Researcher",
-    termStyle:    "Advanced academic language. English abbreviations OK (RCT, ICC, AUC, ANOVA).",
+    termStyle:    "Advanced academic language. English abbreviations OK.",
     statsStyle:   "Mixed-effects models, BIC, meta-analysis, Bayesian inference.",
     academicFocus:"OSF preregistration, R/Stan/Python, high-impact journal submission",
     codeHint:     "Python/R with advanced libs (statsmodels, sklearn, Stan). Include docstring.",
   },
   "大卒社会人": {
     levelLabel:   "Business professional (20s-30s)",
-    termStyle:    "Business-first framing. ROI focus. Brief jargon definitions.",
-    statsStyle:   "A/B test, regression, NPS, KPI tracking, conversion rate.",
+    termStyle:    "Business-first framing. ROI focus.",
+    statsStyle:   "A/B test, regression, NPS, KPI tracking.",
     academicFocus:"Excel CORREL, Looker Studio, Google Analytics, market research",
     businessFocus:"Direct business ROI, team productivity, competitive advantage.",
     codeHint:     "Python with pandas/matplotlib for business data analysis.",
@@ -51,7 +50,7 @@ const LEVEL_CONFIGS: Record<UserType, LevelConfig> = {
   "大学院卒社会人": {
     levelLabel:   "Expert professional — DX/R&D specialist",
     termStyle:    "High-level technical + research language.",
-    statsStyle:   "Causal inference (DiD, PSM), Bayesian opt, CV, Precision/Recall/F1.",
+    statsStyle:   "Causal inference (DiD, PSM), Bayesian opt, F1.",
     academicFocus:"Python/Scikit-learn/Pandas, BigQuery, GitHub Actions",
     businessFocus:"R&D ROI, PoC-to-production path, DX strategy.",
     codeHint:     "Python with scikit-learn/torch. Production-quality code with type hints.",
@@ -66,17 +65,12 @@ const LEVEL_CONFIGS: Record<UserType, LevelConfig> = {
   },
 };
 
-// ── プラン説明 ──────────────────────────────────────────────
 const PLAN_INSTRUCTIONS: Record<Plan, string> = {
-  personal:
-    "PLAN=Personal: Focus on individual daily habits, personal learning, and self-improvement ROI.",
-  enterprise:
-    "PLAN=Enterprise: Emphasize team/org implementation, business KPIs, cost reduction.",
-  researcher:
-    "PLAN=Researcher: Prioritize statistical rigour, reproducibility, publication potential.",
+  personal:   "PLAN=Personal: Focus on individual daily habits, personal learning, self-improvement ROI.",
+  enterprise: "PLAN=Enterprise: Emphasize team/org implementation, business KPIs, cost reduction.",
+  researcher: "PLAN=Researcher: Prioritize statistical rigour, reproducibility, publication potential.",
 };
 
-// ── エクスポート関数 ────────────────────────────────────────
 export function buildSystemPrompt(
   userType: UserType,
   showSources: boolean,
@@ -96,41 +90,41 @@ export function buildSystemPrompt(
     : `"sources": empty array [].`;
 
   const chartRule = showChart
-    ? `"chartData": 4-6 objects {name, value(0-100), basis:"<15-word scientific evidence for this score>"}. `
-    + `basis MUST explain WHY this score exists (cite model/theory/study name).`
+    ? `"chartData": 4-6 objects {name, value(0-100), basis:"<15-word scientific evidence for this score>"}. basis MUST explain WHY this score exists (cite model/theory/study name).`
     : `"chartData": empty array [].`;
 
   const tierCount   = isDeep ? "6-8" : "4-6";
-  const deepInsight = isDeep
-    ? ` Each insight MUST include: (1) key risk/caveat, (2) one alternative approach.`
-    : "";
-
-  const deepDetail = isDeep
+  const deepInsight = isDeep ? ` Each insight MUST include: (1) key risk/caveat, (2) one alternative approach.` : "";
+  const deepDetail  = isDeep
     ? `Deep mode: detailedExplanation 200-280 words. Add: counter-evidence, limitations, alternatives.`
     : `Standard mode: detailedExplanation 120-180 words. Cover mechanism → evidence → limitation → conclusion.`;
 
   const businessBlock = cfg.businessFocus ? `Business focus: ${cfg.businessFocus}\n` : "";
 
-  // ── 思考プロセス指示 ─────────────────────────────────────
-  const thinkingStepCount = isDeep ? 3 : 2;
-  const thinkingRule = `"thinkingProcess": {
-  "steps": [/* ${thinkingStepCount} objects: */
-    {"phase":"<3-word phase name>","reasoning":"<max 25 words explaining THIS step's key decision>","confidence":<0-100>},
-    ...
-  ],
-  "summary":"<1-sentence meta-summary of overall reasoning chain>"
-}`;
+  // ── 思考プロセス ────────────────────────────────────────
+  const thinkingCount = isDeep ? 3 : 2;
+  const thinkingRule = `"thinkingProcess":{"steps":[/* ${thinkingCount} objects */{"phase":"<3-word phase>","reasoning":"<max 25 words>","confidence":<0-100>}],"summary":"<1-sentence>"}`;
 
-  // ── コードアーティファクト指示 ───────────────────────────
-  const codeRule = `"codeArtifact": (INCLUDE only if question involves data analysis, experiment, or modeling — else set null)
-{
-  "language":"python|r|javascript|markdown|text",
-  "title":"<artifact title>",
-  "code":"<5-12 lines of ${cfg.codeHint} Escape newlines as \\n.>",
-  "description":"<1-sentence describing what this code does>"
-}`;
+  // ── コードアーティファクト ──────────────────────────────
+  const codeRule = `"codeArtifact": null if not applicable, else {"language":"python|r|javascript|markdown|text","title":"<title>","code":"<5-12 lines, ${cfg.codeHint} Escape \\n>","description":"<1 sentence>"}`;
 
-  return `You are a world-class scientific research advisor.
+  // ── ソース選択バナー（常時） ───────────────────────────
+  const selectedSourcesRule = `"selectedSources": 2-3 objects [{domainName:"<authoritative domain e.g. ncbi.nlm.nih.gov>", reliabilityScore:<60-99>, reasonForSelection:"<max 8 words>"}] — identify the most authoritative databases/journals for this topic.`;
+
+  // ── 零努力チート（常時） ────────────────────────────────
+  const zeroEffortRule = `"zeroEffortCheat": 2-3 objects [{tediousTask:"<what user normally must struggle with, max 12 words>", shortcutHack:"<AI/tool bypass that eliminates this in seconds, max 18 words>", savedHours:"<e.g. XX時間削減>"}] — identify the most painful friction points and AI-powered shortcuts.`;
+
+  // ── Deep モード専用フィールド ───────────────────────────
+  const deepFields = isDeep ? `
+DEEP MODE INTELLIGENCE MATRIX:
+9. "financialSimulation": 4 objects [{year:"20XX", marketSizeBillions:<N.N>, projectedROI:<N>, alphaCaptureRate:<N>}] — simulated 5-year market/ROI projection if this research is commercialized.
+10. "literatureGapMatrix": 3 objects [{domain:"<field>", unresolvedQuestion:"<key unresolved gap, max 15 words>", evidenceLevel:"RCT|Meta|Cohort|Expert|Theoretical", citationAnchor:"<Author et al. YYYY>"}]
+11. "systemicRisks": 3 objects [{nodeName:"<risk name, max 4 words>", dependencyWeight:<0-100>, failureProbability:<0-100>, mitigationStrategy:"<strategy, max 12 words>"}]` : `
+9. "financialSimulation": null
+10. "literatureGapMatrix": null
+11. "systemicRisks": null`;
+
+  return `You are the sovereign intelligence core engine of scia-nexus® — a world-class scientific research advisor.
 Target: ${cfg.levelLabel}${ageTag}
 ${PLAN_INSTRUCTIONS[plan]}
 Language style: ${cfg.termStyle}
@@ -142,19 +136,21 @@ CONTENT RULES:
 1. Give ONE definitive best "field" and "method". Never say "it depends".
 2. ${deepDetail}
 3. practicalPlans — ${tierCount} tier objects for personal daily actions.
-   Each: {"tier":"S|A|B|C","action":"<specific tool/time/number>","insight":"<mechanism>${deepInsight}","badge":"<8-12 word scientific basis for why this tier assignment>"}
-   action MUST include: specific tool OR exact time OR measurable target.
+   Each: {"tier":"S|A|B|C","action":"<specific tool/time/number>","insight":"<mechanism>${deepInsight}","badge":"<8-12 word scientific basis for tier rank>"}
 4. academicPlans — ${tierCount} tier objects for ${cfg.academicFocus}.
-   Same structure as practicalPlans. badge explains the evidence tier rank.${deepInsight}
+   Same structure. badge explains the evidence tier rank.${deepInsight}
 5. ${sourcesRule}
 6. ${chartRule}
-
-NEW REQUIRED FIELDS:
 7. ${thinkingRule}
 8. ${codeRule}
 
+INTELLIGENCE MATRIX (ALWAYS INCLUDE — these are mandatory):
+7b. ${selectedSourcesRule}
+7c. ${zeroEffortRule}
+${deepFields}
+
 CRITICAL FORMAT:
 Return ONLY valid JSON. No markdown. No text outside JSON. Start { end }.
-Required JSON (12 keys — all mandatory):
-{"success":true,"field":"...","method":"...","metrics":"...","explanation":"...","detailedExplanation":"...","practicalPlans":[{"tier":"S","action":"...","insight":"...","badge":"..."},{"tier":"A","action":"...","insight":"...","badge":"..."},{"tier":"B","action":"...","insight":"...","badge":"..."},{"tier":"C","action":"...","insight":"...","badge":"..."}],"academicPlans":[{"tier":"S","action":"...","insight":"...","badge":"..."},{"tier":"A","action":"...","insight":"...","badge":"..."},{"tier":"B","action":"...","insight":"...","badge":"..."},{"tier":"C","action":"...","insight":"...","badge":"..."}],"sources":[],"chartData":[],"thinkingProcess":{"steps":[{"phase":"...","reasoning":"...","confidence":85}],"summary":"..."},"codeArtifact":null}`;
+Mandatory 15-key structure:
+{"success":true,"field":"...","method":"...","metrics":"...","explanation":"...","detailedExplanation":"...","practicalPlans":[{"tier":"S","action":"...","insight":"...","badge":"..."}],"academicPlans":[{"tier":"S","action":"...","insight":"...","badge":"..."}],"sources":[],"chartData":[],"thinkingProcess":{"steps":[{"phase":"...","reasoning":"...","confidence":85}],"summary":"..."},"codeArtifact":null,"selectedSources":[{"domainName":"ncbi.nlm.nih.gov","reliabilityScore":95,"reasonForSelection":"..."}],"zeroEffortCheat":[{"tediousTask":"...","shortcutHack":"...","savedHours":"XX時間削減"}],"financialSimulation":null,"literatureGapMatrix":null,"systemicRisks":null}`;
 }

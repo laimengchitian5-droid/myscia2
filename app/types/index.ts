@@ -39,7 +39,7 @@ export interface SourceItem {
 export interface ChartDataPoint {
   name: string;
   value: number;
-  basis?: string;  // 科学的根拠・計算根拠テキスト（ホバー表示）
+  basis?: string;
 }
 
 // ──── ティア表（エビデンスバッジ付き） ────────────────────
@@ -47,21 +47,21 @@ export type Tier = "S" | "A" | "B" | "C";
 
 export interface TierItem {
   tier: Tier;
-  action: string;   // 左側: 具体的アクション
-  insight: string;  // 右側: 専門知識・科学的解説
-  badge?: string;   // ホバーバッジ: 科学的エビデンス根拠テキスト
+  action: string;
+  insight: string;
+  badge?: string;
 }
 
 // ──── 思考プロセス（Gemini Thinking風） ────────────────────
 export interface ThinkingStep {
-  phase: string;       // フェーズ名（例: "問題定義", "手法選定"）
-  reasoning: string;   // このフェーズでの推論（25語以内推奨）
-  confidence: number;  // 確信度 0–100
+  phase: string;
+  reasoning: string;
+  confidence: number;
 }
 
 export interface ThinkingProcess {
   steps: ThinkingStep[];
-  summary: string;  // 思考全体のサマリー
+  summary: string;
 }
 
 // ──── コードアーティファクト（Claude Artifacts風） ─────────
@@ -72,6 +72,48 @@ export interface CodeArtifact {
   title: string;
   code: string;
   description?: string;
+}
+
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//  新時代インテリジェンス・マトリクス型定義
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+/** 権威ある情報ソース（MATRIX SOURCE ACTIVATION バナー用） */
+export interface SelectedSource {
+  domainName: string;        // e.g. "ncbi.nlm.nih.gov/pubmed"
+  reliabilityScore: number;  // 0-100
+  reasonForSelection: string;
+}
+
+/** 努力ゼロ化・新時代裏ルート（Zero-Effort Cheat） */
+export interface ZeroEffortCheatItem {
+  tediousTask: string;   // 本来なら直面する「めんどくさい努力・悩み」
+  shortcutHack: string;  // AIが代わりに一瞬で終わらせる「チート級裏ワザ」
+  savedHours: string;    // 物理的に浮く時間（例: "30時間削減"）
+}
+
+/** Bloomberg風：金融・市場シミュレーション */
+export interface FinancialSimulationItem {
+  year: string;
+  marketSizeBillions: number;  // 市場規模 (10億ドル)
+  projectedROI: number;        // 予測ROI (%)
+  alphaCaptureRate: number;    // アルファ捕捉率 (%)
+}
+
+/** PubMed風：文献ギャップ・マトリクス */
+export interface LiteratureGapItem {
+  domain: string;             // 研究領域
+  unresolvedQuestion: string; // 未解決の問い
+  evidenceLevel: string;      // "RCT" | "Meta" | "Cohort" | "Expert" など
+  citationAnchor: string;     // 代表的引用（Author et al. YYYY）
+}
+
+/** Palantir風：システミックリスク・マトリクス */
+export interface SystemicRiskItem {
+  nodeName: string;            // リスクノード名
+  dependencyWeight: number;    // 依存度 0-100
+  failureProbability: number;  // 障害発生確率 0-100
+  mitigationStrategy: string;  // 緩和戦略
 }
 
 // ──── LLM レスポンス JSON（内部型） ────────────────────────
@@ -86,9 +128,16 @@ export interface LLMJsonResponse {
   academicPlans: TierItem[];
   sources: SourceItem[];
   chartData: ChartDataPoint[];
-  // ── 新規フィールド（null = LLMが出力しなかった場合） ──
+  // Gemini Thinking
   thinkingProcess?: ThinkingProcess | null;
+  // Claude Artifacts
   codeArtifact?: CodeArtifact | null;
+  // ── インテリジェンス・マトリクス（新規） ──
+  selectedSources?: SelectedSource[] | null;
+  zeroEffortCheat?: ZeroEffortCheatItem[] | null;
+  financialSimulation?: FinancialSimulationItem[] | null;   // Deep mode
+  literatureGapMatrix?: LiteratureGapItem[] | null;          // Deep mode
+  systemicRisks?: SystemicRiskItem[] | null;                 // Deep mode
 }
 
 // ──── API ルートのレスポンス ────────────────────────────────
